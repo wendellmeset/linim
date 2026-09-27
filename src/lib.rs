@@ -5,3 +5,4 @@
 pub mod error;
 pub mod header;
 pub mod helpers;
+pub mod license;
