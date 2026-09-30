@@ -28,9 +28,6 @@ pub enum LinimError {
     /// The `.linim` state file is malformed or unreadable.
     StateFileInvalid { reason: String },
 
-    /// A `git config` shell-out failed.
-    GitConfigFailed { key: String },
-
     /// A file contains multiple qualifying license headers.
     AmbiguousHeader { path: PathBuf, lines: Vec<usize> },
 
@@ -72,9 +69,6 @@ impl fmt::Display for LinimError {
             }
             LinimError::StateFileInvalid { reason } => {
                 write!(f, "invalid .linim state file: {reason}")
-            }
-            LinimError::GitConfigFailed { key } => {
-                write!(f, "failed to read git config key: {key}")
             }
             LinimError::AmbiguousHeader { path, lines } => {
                 write!(
@@ -159,14 +153,6 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains(".linim"));
         assert!(msg.contains("bad format"));
-    }
-
-    #[test]
-    fn display_git_config_failed() {
-        let err = LinimError::GitConfigFailed {
-            key: "user.name".into(),
-        };
-        assert!(err.to_string().contains("user.name"));
     }
 
     #[test]
