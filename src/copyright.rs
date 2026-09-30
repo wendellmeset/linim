@@ -38,7 +38,7 @@ fn prompt_holder() -> Result<String> {
         let input: String = dialoguer::Input::new()
             .with_prompt("Copyright holder")
             .interact_text()
-            .map_err(|e| LinimError::PromptFailed { source: e.into() })?;
+            .map_err(LinimError::dialoguer)?;
         let trimmed = input.trim().to_string();
         if !trimmed.is_empty() {
             return Ok(trimmed);
@@ -55,7 +55,7 @@ fn prompt_year() -> Result<u16> {
             .with_prompt("Year")
             .default(helpers::format_year(default))
             .interact_text()
-            .map_err(|e| LinimError::PromptFailed { source: e.into() })?;
+            .map_err(LinimError::dialoguer)?;
         match helpers::parse_year(input.trim()) {
             Some(year) => return Ok(year),
             None => eprintln!("Please enter a valid year."),

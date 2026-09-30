@@ -37,6 +37,9 @@ pub enum LinimError {
     /// An interactive prompt failed (non-tty stdin, etc.).
     PromptFailed { source: io::Error },
 
+    /// The user cancelled an interactive prompt with Ctrl-C.
+    Cancelled,
+
     /// A directory traversal error.
     WalkFailed { path: PathBuf, source: ignore::Error },
 
@@ -50,6 +53,20 @@ impl LinimError {
         LinimError::Io {
             path: path.into(),
             source,
+        }
+    }
+
+    /// Map a `dialoguer` error, distinguishing Ctrl-C from real failures.
+    ///
+    /// `dialoguer` wraps its underlying `io::Error`; a Ctrl-C surfaces as
+    /// `io::ErrorKind::Interrupted`. Anything else is a genuine prompt failure
+    /// (non-tty stdin, broken pipe, etc.).
+    pub fn dialoguer(source: dialoguer::Error) -> LinimError {
+        let source: io::Error = source.into();
+        if source.kind() == io::ErrorKind::Interrupted {
+            LinimError::Cancelled
+        } else {
+            LinimError::PromptFailed { source }
         }
     }
 }
@@ -83,6 +100,7 @@ impl fmt::Display for LinimError {
             LinimError::PromptFailed { source } => {
                 write!(f, "interactive prompt failed: {source}")
             }
+            LinimError::Cancelled => write!(f, "cancelled"),
             LinimError::WalkFailed { path, source } => {
                 write!(f, "failed to walk {}: {source}", path.display())
             }
