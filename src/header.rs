@@ -3,6 +3,7 @@
 
 pub mod comment_map;
 pub mod detect;
+pub mod inject;
 pub mod preamble;
 pub mod strip;
 pub mod template;
