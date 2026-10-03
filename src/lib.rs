@@ -8,3 +8,4 @@ pub mod header;
 pub mod helpers;
 pub mod license;
 pub mod state;
+pub mod walker;
