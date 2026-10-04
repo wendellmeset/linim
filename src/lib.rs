@@ -7,5 +7,6 @@ pub mod error;
 pub mod header;
 pub mod helpers;
 pub mod license;
+pub mod process;
 pub mod state;
 pub mod walker;
