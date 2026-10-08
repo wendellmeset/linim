@@ -3,3 +3,4 @@
 
 pub mod picker;
 pub mod registry;
+pub mod template;
