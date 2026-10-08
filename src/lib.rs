@@ -2,6 +2,7 @@
 //!
 //! The library crate holds the domain modules; the binary is a thin CLI on top.
 
+pub mod cli;
 pub mod copyright;
 pub mod error;
 pub mod header;
