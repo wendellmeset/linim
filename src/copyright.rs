@@ -34,6 +34,7 @@ pub fn resolve(state: Option<&State>) -> Result<CopyrightInfo> {
 
 /// Prompt for a non-empty copyright holder, looping until one is given.
 fn prompt_holder() -> Result<String> {
+    LinimError::ensure_tty()?;
     loop {
         let input: String = dialoguer::Input::new()
             .with_prompt("Copyright holder")

@@ -20,6 +20,8 @@ pub struct HeaderTemplate {
     pub content: String,
     /// Just the SPDX line, for comparison and reporting.
     pub spdx_line: String,
+    /// Just the SPDX identifier value (no prefix), e.g. `"MIT"`.
+    pub spdx_value: String,
     /// Just the copyright line, for comparison and reporting.
     pub copyright_line: String,
 }
@@ -31,6 +33,7 @@ pub fn build(spdx: &str, holder: &str, year: u16) -> HeaderTemplate {
     HeaderTemplate {
         content: helpers::substitute(CONTENT_TEMPLATE, &vars),
         spdx_line: helpers::substitute(SPDX_TEMPLATE, &vars),
+        spdx_value: spdx.to_string(),
         copyright_line: helpers::substitute(COPYRIGHT_TEMPLATE, &vars),
     }
 }
@@ -62,6 +65,7 @@ mod tests {
         let t = build("MIT", "wendellmeset", 2026);
         assert_eq!(t.content, "SPDX-License-Identifier: MIT\nCopyright (c) 2026 wendellmeset");
         assert_eq!(t.spdx_line, "SPDX-License-Identifier: MIT");
+        assert_eq!(t.spdx_value, "MIT");
         assert_eq!(t.copyright_line, "Copyright (c) 2026 wendellmeset");
     }
 

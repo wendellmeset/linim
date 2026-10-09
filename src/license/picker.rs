@@ -28,6 +28,7 @@ pub fn build_items() -> Vec<String> {
 /// `Err(PromptFailed)` on a genuine prompt failure and `Err(Cancelled)` on
 /// Ctrl-C.
 pub fn pick() -> Result<&'static LicenseEntry> {
+    LinimError::ensure_tty()?;
     let items = build_items();
     let selection = dialoguer::FuzzySelect::new()
         .with_prompt("Choose a license")

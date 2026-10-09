@@ -69,6 +69,25 @@ impl LinimError {
             LinimError::PromptFailed { source }
         }
     }
+
+    /// Refuse to prompt unless stdin is a terminal.
+    ///
+    /// `dialoguer` never returns cleanly on a non-tty stdin: it can spin
+    /// redrawing the prompt forever, so we fail fast with `PromptFailed`
+    /// before any interactive call.
+    pub fn ensure_tty() -> Result<()> {
+        use std::io::IsTerminal;
+        if std::io::stdin().is_terminal() {
+            Ok(())
+        } else {
+            Err(LinimError::PromptFailed {
+                source: io::Error::new(
+                    io::ErrorKind::NotConnected,
+                    "stdin is not a terminal",
+                ),
+            })
+        }
+    }
 }
 
 impl fmt::Display for LinimError {
