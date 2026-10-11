@@ -224,6 +224,14 @@ pub fn relative_display(root: &Path, path: &Path) -> String {
     }
 }
 
+/// Trim trailing line terminators (`\n`, `\r`) from a string.
+///
+/// Used for byte-exact comparisons that tolerate a missing or extra final
+/// newline, and nothing else. Legal text is not whitespace-normalized away.
+pub fn trim_trailing_newlines(s: &str) -> &str {
+    s.trim_end_matches(['\n', '\r'])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -420,5 +428,16 @@ mod tests {
             relative_display(Path::new("/proj"), Path::new("/other/x")),
             "/other/x"
         );
+    }
+
+    #[test]
+    fn trim_trailing_newlines_helpers() {
+        assert_eq!(trim_trailing_newlines("a\n"), "a");
+        assert_eq!(trim_trailing_newlines("a\r\n\n"), "a");
+        assert_eq!(trim_trailing_newlines("a\nb\n"), "a\nb");
+        assert_eq!(trim_trailing_newlines("a"), "a");
+        assert_eq!(trim_trailing_newlines(""), "");
+        // Interior newlines are kept.
+        assert_eq!(trim_trailing_newlines("a\n\nb"), "a\n\nb");
     }
 }

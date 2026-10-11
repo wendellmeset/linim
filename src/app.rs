@@ -11,6 +11,7 @@ use crate::cli::args::Args;
 use crate::copyright;
 use crate::error::{LinimError, Result};
 use crate::header::template;
+use crate::helpers;
 use crate::license::{picker, registry};
 use crate::process::parallel;
 use crate::process::single::Context;
@@ -43,7 +44,12 @@ pub fn run(args: Args) -> Result<bool> {
             (entry, info)
         }
         _ => {
-            let entry = picker::pick()?;
+            let entry = if let Some(spdx) = crate::license::detect::detect(&args.path)? {
+                // An existing, recognized LICENSE means no picker needed.
+                registry::by_spdx(&spdx)?
+            } else {
+                picker::pick()?
+            };
             let info = copyright::resolve(None)?;
             (entry, info)
         }
@@ -58,7 +64,10 @@ pub fn run(args: Args) -> Result<bool> {
     let license_text = crate::license::template::build(entry, &info.holder, info.year);
     let license_path = args.path.join("LICENSE");
     let license_needs_write = match fs::read_to_string(&license_path) {
-        Ok(existing) => trim_trailing_newlines(&existing) != trim_trailing_newlines(&license_text),
+        Ok(existing) => {
+            helpers::trim_trailing_newlines(&existing)
+                != helpers::trim_trailing_newlines(&license_text)
+        }
         Err(e) if e.kind() == io::ErrorKind::NotFound => true,
         Err(e) => return Err(LinimError::io(&license_path, e)),
     };
@@ -93,10 +102,4 @@ pub fn run(args: Args) -> Result<bool> {
     // Phase 11: report and report failure.
     print!("{}", summary.render(&args.path));
     Ok(!summary.errors.is_empty())
-}
-
-/// Trim trailing line terminators for a byte-exact comparison that tolerates a
-/// missing/extra final newline, and nothing else.
-fn trim_trailing_newlines(s: &str) -> &str {
-    s.trim_end_matches(['\n', '\r'])
 }

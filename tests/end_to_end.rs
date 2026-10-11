@@ -132,3 +132,24 @@ fn nonexistent_path_errors() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("path is not a directory"));
 }
+
+#[test]
+fn existing_recognized_license_reaches_copyright_prompt() {
+    // A repo with a recognized LICENSE but no `.linim` skips the license
+    // picker (detect wiring) and proceeds to the copyright prompt, which
+    // fails on non-tty stdin, proving the picker was never reached.
+    let dir = tempdir().unwrap();
+    let entry = linim::license::registry::by_spdx("GPL-3.0-only").unwrap();
+    fs::write(dir.path().join("LICENSE"), entry.body).unwrap();
+    fs::write(dir.path().join("main.rs"), "fn main() {}\n").unwrap();
+
+    let out = run(dir.path(), &[]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("stdin is not a terminal"));
+    // Nothing modified: no .linim, no header, LICENSE untouched.
+    assert!(!dir.path().join(".linim").exists());
+    assert_eq!(
+        fs::read_to_string(dir.path().join("main.rs")).unwrap(),
+        "fn main() {}\n"
+    );
+}
