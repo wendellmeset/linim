@@ -97,9 +97,12 @@ pub fn run(args: Args) -> Result<bool> {
     // Phase 9-10: walk and process.
     let paths = walker::collect_files(&args.path)?;
     let results = parallel::process_all(&paths, &ctx);
-    let summary = summary::summarize(&results, &paths);
+    let summary = summary::summarize(&results, &paths, args.verbose);
 
     // Phase 11: report and report failure.
+    if summary.verbose {
+        eprint!("{}", summary.render_verbose(&args.path));
+    }
     print!("{}", summary.render(&args.path));
     Ok(!summary.errors.is_empty())
 }

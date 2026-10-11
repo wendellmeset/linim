@@ -17,3 +17,7 @@ pub const NEW_HELP: &str = "Reconfigure from scratch. Prompts for license and \
 /// Help for `--no-headers`.
 pub const NO_HEADERS_HELP: &str =
     "Write or update LICENSE only. Do not touch source file headers.";
+
+/// Help for `--verbose`.
+pub const VERBOSE_HELP: &str =
+    "Emit one line per updated file to stderr.";

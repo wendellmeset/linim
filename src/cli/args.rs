@@ -12,7 +12,7 @@ use crate::cli::help;
 
 /// The parsed command-line arguments.
 #[derive(Parser, Debug, PartialEq, Eq)]
-#[command(about = help::LONG_ABOUT)]
+#[command(version, about = help::LONG_ABOUT)]
 pub struct Args {
     /// Reconfigure from scratch, bypassing `.linim` and any existing `LICENSE`.
     #[arg(long, help = help::NEW_HELP)]
@@ -21,6 +21,10 @@ pub struct Args {
     /// Write or update `LICENSE` only; do not touch source file headers.
     #[arg(long, help = help::NO_HEADERS_HELP)]
     pub no_headers: bool,
+
+    /// Emit one line per updated file to stderr.
+    #[arg(long, help = help::VERBOSE_HELP)]
+    pub verbose: bool,
 
     /// The directory to operate on.
     #[arg(default_value = ".", help = help::PATH_HELP)]
@@ -92,6 +96,20 @@ mod tests {
         // clap's default `SetTrue` action rejects repeated occurrences of a
         // bool flag with an `ArgumentConflict`. Documented behavior.
         assert!(parse_from(&["linim", "--new", "--new"]).is_err());
+    }
+
+    #[test]
+    fn verbose_flag() {
+        let a = parse_from(&["linim", "--verbose"]).unwrap();
+        assert!(a.verbose);
+    }
+
+    #[test]
+    fn version_flag() {
+        use clap::CommandFactory;
+        let cmd = Args::command();
+        let version = cmd.render_version().to_string();
+        assert!(version.contains("0.1.0"), "{version}");
     }
 
     #[test]

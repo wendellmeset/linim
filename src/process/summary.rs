@@ -23,19 +23,29 @@ pub struct Summary {
     pub ambiguous: Vec<(PathBuf, Vec<usize>)>,
     /// Files that failed: path and formatted error message.
     pub errors: Vec<(PathBuf, String)>,
+    /// Paths of files rewritten, in input order (for `--verbose`).
+    pub updated_paths: Vec<PathBuf>,
+    /// Whether per-file update lines should be reported.
+    pub verbose: bool,
 }
 
 /// Build a [`Summary`] from results paired with their paths.
 ///
 /// `results[i]` corresponds to `paths[i]` (as produced by `process_all`).
-pub fn summarize(results: &[Result<FileOutcome>], paths: &[PathBuf]) -> Summary {
+pub fn summarize(results: &[Result<FileOutcome>], paths: &[PathBuf], verbose: bool) -> Summary {
     debug_assert_eq!(results.len(), paths.len());
-    let mut summary = Summary::default();
+    let mut summary = Summary {
+        verbose,
+        ..Summary::default()
+    };
     for (path, result) in paths.iter().zip(results) {
         summary.scanned += 1;
         match result {
             Ok(FileOutcome::Skipped) => summary.skipped += 1,
-            Ok(FileOutcome::Updated) => summary.updated += 1,
+            Ok(FileOutcome::Updated) => {
+                summary.updated += 1;
+                summary.updated_paths.push(path.clone());
+            }
             Ok(FileOutcome::Ambiguous(blocks)) => {
                 summary.ambiguous.push((path.clone(), lines_of(blocks)));
             }
@@ -81,6 +91,24 @@ impl Summary {
 
     out
 }
+
+/// Render one `updated: <relative path>` line per rewritten file, for stderr.
+///
+/// Empty unless `verbose` is set. Paths are relative to `root`, matching the
+/// summary's conventions.
+pub fn render_verbose(&self, root: &Path) -> String {
+    if !self.verbose {
+        return String::new();
+    }
+    let mut out = String::new();
+    for path in &self.updated_paths {
+        out.push_str(&format!(
+            "updated: {}\n",
+            helpers::relative_display(root, path)
+        ));
+    }
+    out
+}
 }
 
 fn lines_of(blocks: &[HeaderBlock]) -> Vec<usize> {
@@ -118,7 +146,7 @@ mod tests {
         ];
         let results: Vec<Result<FileOutcome>> =
             (0..3).map(|_| Ok(FileOutcome::Skipped)).collect();
-        let s = summarize(&results, &paths);
+        let s = summarize(&results, &paths, false);
         assert_eq!(s.scanned, 3);
         assert_eq!(s.skipped, 3);
         assert_eq!(s.updated, 0);
@@ -130,7 +158,7 @@ mod tests {
     fn all_updated_counts() {
         let paths = vec![PathBuf::from("/proj/a.rs")];
         let results: Vec<Result<FileOutcome>> = vec![Ok(FileOutcome::Updated)];
-        let s = summarize(&results, &paths);
+        let s = summarize(&results, &paths, false);
         assert_eq!(s.scanned, 1);
         assert_eq!(s.updated, 1);
         assert_eq!(s.skipped, 0);
@@ -148,7 +176,7 @@ mod tests {
             Ok(FileOutcome::Updated),
             Ok(FileOutcome::Ambiguous(vec![block(3), block(8)])),
         ];
-        let s = summarize(&results, &paths);
+        let s = summarize(&results, &paths, false);
         assert_eq!(s.scanned, 3);
         assert_eq!(s.skipped, 1);
         assert_eq!(s.updated, 1);
@@ -160,7 +188,7 @@ mod tests {
     fn render_minimal() {
         let paths = vec![PathBuf::from("/proj/a.rs")];
         let results: Vec<Result<FileOutcome>> = vec![Ok(FileOutcome::Skipped)];
-        let s = summarize(&results, &paths);
+        let s = summarize(&results, &paths, false);
         assert_eq!(s.render(Path::new("/proj")), "Scanned 1, updated 0, skipped 1.\n");
     }
 
@@ -169,7 +197,7 @@ mod tests {
         let paths: Vec<PathBuf> = (0..10).map(|i| PathBuf::from(format!("/proj/f{i}.rs"))).collect();
         let results: Vec<Result<FileOutcome>> =
             (0..10).map(|_| Ok(FileOutcome::Skipped)).collect();
-        let s = summarize(&results, &paths);
+        let s = summarize(&results, &paths, false);
         assert_eq!(s.render(Path::new("/proj")), "Scanned 10, updated 0, skipped 10.\n");
     }
 
@@ -178,7 +206,7 @@ mod tests {
         let paths = vec![PathBuf::from("/proj/src/vendor/foo.go")];
         let results: Vec<Result<FileOutcome>> =
             vec![Ok(FileOutcome::Ambiguous(vec![block(3), block(8)]))];
-        let s = summarize(&results, &paths);
+        let s = summarize(&results, &paths, false);
         assert_eq!(
             s.render(Path::new("/proj")),
             "Scanned 1, updated 0, skipped 0.\n\nAmbiguous header (skipped):\n  src/vendor/foo.go — 2 license headers at lines 3, 8\n"
@@ -189,7 +217,7 @@ mod tests {
     fn render_one_error() {
         let paths = vec![PathBuf::from("/proj/src/blocked.rs")];
         let results: Vec<Result<FileOutcome>> = vec![Err(io_err("Permission denied (os error 13)"))];
-        let s = summarize(&results, &paths);
+        let s = summarize(&results, &paths, false);
         assert_eq!(
             s.render(Path::new("/proj")),
             "Scanned 1, updated 0, skipped 0.\n\nErrors:\n  src/blocked.rs — failed to access /proj/src/blocked.rs: Permission denied (os error 13)\n"
@@ -206,7 +234,7 @@ mod tests {
             Ok(FileOutcome::Ambiguous(vec![block(1), block(5)])),
             Err(io_err("boom")),
         ];
-        let s = summarize(&results, &paths);
+        let s = summarize(&results, &paths, false);
         let out = s.render(Path::new("/proj"));
         assert!(out.starts_with("Scanned 2, updated 0, skipped 0.\n"));
         // Sections appear in order: counts, blank+ambiguous, blank+errors.
@@ -230,7 +258,7 @@ mod tests {
             Err(io_err("e1")),
             Ok(FileOutcome::Ambiguous(vec![block(2)])),
         ];
-        let s = summarize(&results, &paths);
+        let s = summarize(&results, &paths, false);
         assert_eq!(s.ambiguous[0].0, PathBuf::from("/proj/x.rs"));
         assert_eq!(s.ambiguous[1].0, PathBuf::from("/proj/z.rs"));
         assert_eq!(s.errors[0].0, PathBuf::from("/proj/y.rs"));
@@ -248,5 +276,32 @@ mod tests {
             helpers::relative_display(Path::new("/proj"), Path::new("/proj")),
             "/proj"
         );
+    }
+
+    #[test]
+    fn render_verbose_lists_updated_paths() {
+        let paths = vec![
+            PathBuf::from("/proj/src/a.rs"),
+            PathBuf::from("/proj/src/b.rs"),
+            PathBuf::from("/proj/src/c.rs"),
+        ];
+        let results: Vec<Result<FileOutcome>> = vec![
+            Ok(FileOutcome::Updated),
+            Ok(FileOutcome::Skipped),
+            Ok(FileOutcome::Updated),
+        ];
+        let s = summarize(&results, &paths, true);
+        assert_eq!(
+            s.render_verbose(Path::new("/proj")),
+            "updated: src/a.rs\nupdated: src/c.rs\n"
+        );
+    }
+
+    #[test]
+    fn render_verbose_empty_when_not_verbose() {
+        let paths = vec![PathBuf::from("/proj/a.rs")];
+        let results: Vec<Result<FileOutcome>> = vec![Ok(FileOutcome::Updated)];
+        let s = summarize(&results, &paths, false);
+        assert_eq!(s.render_verbose(Path::new("/proj")), "");
     }
 }

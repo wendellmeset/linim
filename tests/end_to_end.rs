@@ -134,6 +134,28 @@ fn nonexistent_path_errors() {
 }
 
 #[test]
+fn verbose_lists_updated_files_to_stderr() {
+    let dir = tempdir().unwrap();
+    write_state(dir.path());
+    fs::write(dir.path().join("a.rs"), "fn a() {}\n").unwrap();
+    fs::write(dir.path().join("b.rs"), "fn b() {}\n").unwrap();
+
+    let out = run(dir.path(), &["--verbose"]);
+    assert!(out.status.success());
+    let err = stderr(&out);
+    assert!(err.contains("updated: a.rs"), "stderr: {err}");
+    assert!(err.contains("updated: b.rs"), "stderr: {err}");
+    // In the same (sorted) order as the walker yields them.
+    let pos_a = err.find("updated: a.rs").unwrap();
+    let pos_b = err.find("updated: b.rs").unwrap();
+    assert!(pos_a < pos_b, "stderr: {err}");
+
+    // Without --verbose, no update lines at all.
+    let quiet = run(dir.path(), &[]);
+    assert!(!stderr(&quiet).contains("updated:"));
+}
+
+#[test]
 fn existing_recognized_license_reaches_copyright_prompt() {
     // A repo with a recognized LICENSE but no `.linim` skips the license
     // picker (detect wiring) and proceeds to the copyright prompt, which
