@@ -198,7 +198,12 @@ fn comment_text(line: &str, style: CommentStyle) -> Option<&str> {
 }
 
 /// Whether a comment line starts with `Copyright` at a word boundary.
+/// Whether a comment line is a copyright line: the REUSE `SPDX-FileCopyrightText:`
+/// tag, or `Copyright` at a word boundary.
 fn is_copyright_line(line: &str) -> bool {
+    if line.starts_with("SPDX-FileCopyrightText:") {
+        return true;
+    }
     let Some(rest) = line.strip_prefix("Copyright") else {
         return false;
     };

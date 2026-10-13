@@ -36,7 +36,7 @@ pub enum FileOutcome {
 pub struct Context {
     /// The expected SPDX expression, e.g. `"MIT"`.
     pub expected_spdx: String,
-    /// The expected copyright line, e.g. `"Copyright (c) 2026 wendellmeset"`.
+    /// The expected copyright line, e.g. `"SPDX-FileCopyrightText: 2026 wendellmeset"`.
     pub expected_copyright: String,
     /// The header template, rendered per file for the file's comment style.
     pub template: HeaderTemplate,
@@ -153,7 +153,7 @@ mod tests {
         std::fs::write(&path, b"").unwrap();
         assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Updated);
         let out = std::fs::read(&path).unwrap();
-        assert!(out.starts_with(b"// SPDX-License-Identifier: MIT\n"));
+        assert!(out.starts_with(b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n"));
     }
 
     #[test]
@@ -161,7 +161,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("main.rs");
         let original =
-            b"// SPDX-License-Identifier: MIT\n// Copyright (c) 2026 wendellmeset\n\nfn main() {}\n";
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nfn main() {}\n";
         std::fs::write(&path, original).unwrap();
         assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Skipped);
         assert_eq!(std::fs::read(&path).unwrap(), original);
@@ -173,12 +173,12 @@ mod tests {
         let path = dir.path().join("main.rs");
         std::fs::write(
             &path,
-            b"// SPDX-License-Identifier: Apache-2.0\n// Copyright (c) 2026 wendellmeset\n\ncode\n",
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: Apache-2.0\n\ncode\n",
         )
         .unwrap();
         assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Updated);
         let out = std::fs::read(&path).unwrap();
-        assert!(out.starts_with(b"// SPDX-License-Identifier: MIT\n"));
+        assert!(out.starts_with(b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n"));
         assert!(out.windows(b"Apache-2.0".len()).all(|w| w != b"Apache-2.0"));
     }
 
@@ -193,7 +193,7 @@ mod tests {
         .unwrap();
         assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Updated);
         let out = std::fs::read(&path).unwrap();
-        assert!(out.starts_with(b"// SPDX-License-Identifier: MIT\n"));
+        assert!(out.starts_with(b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n"));
     }
 
     #[test]
@@ -201,7 +201,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("main.rs");
         let original =
-            b"// SPDX-License-Identifier: MIT\n\n// SPDX-License-Identifier: Apache-2.0\n\ncode\n";
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\n// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: Apache-2.0\n\ncode\n";
         std::fs::write(&path, original).unwrap();
         match process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap() {
             FileOutcome::Ambiguous(blocks) => assert_eq!(blocks.len(), 2),
@@ -217,7 +217,7 @@ mod tests {
         std::fs::write(&path, b"#!/usr/bin/env python3\nprint('hi')\n").unwrap();
         assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Updated);
         let out = String::from_utf8(std::fs::read(&path).unwrap()).unwrap();
-        assert!(out.starts_with("#!/usr/bin/env python3\n# SPDX-License-Identifier: MIT\n"));
+        assert!(out.starts_with("#!/usr/bin/env python3\n# SPDX-FileCopyrightText: 2026 wendellmeset\n# SPDX-License-Identifier: MIT\n"));
     }
 
     #[test]
@@ -233,7 +233,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("big.rs");
         let mut original =
-            b"// SPDX-License-Identifier: MIT\n// Copyright (c) 2026 wendellmeset\n\n".to_vec();
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\n".to_vec();
         original.extend(std::iter::repeat_n(b'x', 9000));
         original.push(b'\n');
         std::fs::write(&path, &original).unwrap();
@@ -252,9 +252,9 @@ mod tests {
         std::fs::write(&path, &original).unwrap();
         assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Updated);
         let out = std::fs::read(&path).unwrap();
-        assert!(out.starts_with(b"// SPDX-License-Identifier: MIT\n"));
+        assert!(out.starts_with(b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n"));
         // The original tail is preserved after the inserted header.
-        let header = b"// SPDX-License-Identifier: MIT\n// Copyright (c) 2026 wendellmeset\n\n";
+        let header = b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\n";
         assert_eq!(&out[header.len()..], original.as_slice());
     }
 

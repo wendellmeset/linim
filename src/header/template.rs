@@ -8,15 +8,16 @@ use crate::header::comment_map::CommentStyle;
 use crate::helpers;
 
 /// The canonical header content template, `{spdx}`, `{year}`, `{holder}`
-/// substituted at build time.
+/// substituted at build time. Copyright first, then the SPDX identifier, per
+/// the REUSE software spec.
 const CONTENT_TEMPLATE: &str =
-    "SPDX-License-Identifier: {spdx}\nCopyright (c) {year} {holder}";
+    "SPDX-FileCopyrightText: {year} {holder}\nSPDX-License-Identifier: {spdx}";
 const SPDX_TEMPLATE: &str = "SPDX-License-Identifier: {spdx}";
-const COPYRIGHT_TEMPLATE: &str = "Copyright (c) {year} {holder}";
+const COPYRIGHT_TEMPLATE: &str = "SPDX-FileCopyrightText: {year} {holder}";
 
 /// The expected header: content plus the two lines extracted for comparison.
 pub struct HeaderTemplate {
-    /// The two-line body, e.g. `"SPDX-License-Identifier: MIT\nCopyright (c) 2026 wendellmeset"`.
+    /// The two-line body, e.g. `"SPDX-FileCopyrightText: 2026 wendellmeset\nSPDX-License-Identifier: MIT"`.
     pub content: String,
     /// Just the SPDX line, for comparison and reporting.
     pub spdx_line: String,
@@ -63,10 +64,13 @@ mod tests {
     #[test]
     fn build_produces_expected_fields() {
         let t = build("MIT", "wendellmeset", 2026);
-        assert_eq!(t.content, "SPDX-License-Identifier: MIT\nCopyright (c) 2026 wendellmeset");
+        assert_eq!(
+            t.content,
+            "SPDX-FileCopyrightText: 2026 wendellmeset\nSPDX-License-Identifier: MIT"
+        );
         assert_eq!(t.spdx_line, "SPDX-License-Identifier: MIT");
         assert_eq!(t.spdx_value, "MIT");
-        assert_eq!(t.copyright_line, "Copyright (c) 2026 wendellmeset");
+        assert_eq!(t.copyright_line, "SPDX-FileCopyrightText: 2026 wendellmeset");
     }
 
     #[test]
@@ -74,7 +78,7 @@ mod tests {
         let t = build("MIT", "wendellmeset", 2026);
         assert_eq!(
             t.render(CommentStyle::SingleLine("//")),
-            "// SPDX-License-Identifier: MIT\n// Copyright (c) 2026 wendellmeset\n\n"
+            "// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\n"
         );
     }
 
@@ -82,7 +86,7 @@ mod tests {
     fn render_single_line_hash_uses_space() {
         let t = build("MIT", "wendellmeset", 2026);
         let out = t.render(CommentStyle::SingleLine("#"));
-        assert!(out.starts_with("# SPDX-License-Identifier: MIT\n# Copyright (c) 2026 wendellmeset"));
+        assert!(out.starts_with("# SPDX-FileCopyrightText: 2026 wendellmeset\n# SPDX-License-Identifier: MIT"));
     }
 
     #[test]
@@ -90,17 +94,17 @@ mod tests {
         let t = build("MIT", "wendellmeset", 2026);
         assert_eq!(
             t.render(CommentStyle::Block { open: "<!--", close: "-->" }),
-            "<!--\nSPDX-License-Identifier: MIT\nCopyright (c) 2026 wendellmeset\n-->\n\n"
+            "<!--\nSPDX-FileCopyrightText: 2026 wendellmeset\nSPDX-License-Identifier: MIT\n-->\n\n"
         );
     }
 
     #[test]
     fn render_empty_holder_does_not_crash() {
         let t = build("MIT", "", 2026);
-        assert_eq!(t.content, "SPDX-License-Identifier: MIT\nCopyright (c) 2026 ");
+        assert_eq!(t.content, "SPDX-FileCopyrightText: 2026 \nSPDX-License-Identifier: MIT");
         let out = t.render(CommentStyle::SingleLine("//"));
         assert!(out.contains("SPDX-License-Identifier: MIT"));
-        assert!(out.contains("Copyright (c) 2026"));
+        assert!(out.contains("SPDX-FileCopyrightText: 2026"));
         assert!(out.ends_with("\n\n"));
     }
 

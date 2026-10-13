@@ -48,7 +48,7 @@ fn fresh_repo_adds_header_and_license() {
     assert!(stdout(&out).contains("Scanned 1, updated 1, skipped 0."));
 
     let rs = fs::read_to_string(dir.path().join("main.rs")).unwrap();
-    assert!(rs.starts_with("// SPDX-License-Identifier: MIT\n"));
+    assert!(rs.starts_with("// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n"));
 
     let license = fs::read_to_string(dir.path().join("LICENSE")).unwrap();
     assert!(license.contains("Copyright (c) 2026 wendellmeset"));
@@ -61,7 +61,7 @@ fn fresh_repo_adds_header_and_license() {
 fn second_run_is_idempotent() {
     let dir = tempdir().unwrap();
     write_state(dir.path());
-    let before = b"// SPDX-License-Identifier: MIT\n// Copyright (c) 2026 wendellmeset\n\nfn main() {}\n";
+    let before = b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nfn main() {}\n";
     fs::write(dir.path().join("main.rs"), before).unwrap();
 
     let out = run(dir.path(), &[]);
@@ -112,7 +112,7 @@ fn ambiguous_header_reported() {
     write_state(dir.path());
     fs::write(
         dir.path().join("main.rs"),
-        "// SPDX-License-Identifier: MIT\n\n// SPDX-License-Identifier: Apache-2.0\n\nfn main() {}\n",
+        "// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\n// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: Apache-2.0\n\nfn main() {}\n",
     )
     .unwrap();
 
@@ -121,7 +121,7 @@ fn ambiguous_header_reported() {
     let text = stdout(&out);
     assert!(text.contains("Ambiguous header (skipped):"));
     assert!(text.contains("main.rs"));
-    assert!(text.contains("2 license headers at lines 0, 2"));
+    assert!(text.contains("2 license headers at lines 0, 3"));
 }
 
 #[test]

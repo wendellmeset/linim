@@ -60,7 +60,7 @@ mod tests {
         std::fs::write(&path, b"").unwrap();
         let results = process_all(std::slice::from_ref(&path), &ctx("MIT", "wendellmeset", 2026));
         assert_eq!(classify(&results), vec!["updated"]);
-        assert!(std::fs::read(&path).unwrap().starts_with(b"// SPDX-License-Identifier: MIT\n"));
+        assert!(std::fs::read(&path).unwrap().starts_with(b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n"));
     }
 
     #[test]
@@ -84,7 +84,7 @@ mod tests {
             .iter()
             .map(|f| dir.path().join(f))
             .collect();
-        let header = b"// SPDX-License-Identifier: MIT\n// Copyright (c) 2026 wendellmeset\n\nfn main() {}\n";
+        let header = b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nfn main() {}\n";
         for p in &paths {
             std::fs::write(p, header).unwrap();
         }
@@ -100,13 +100,13 @@ mod tests {
         std::fs::write(&a, b"fn main() {}\n").unwrap();
         // b.rs: already correct (Skipped)
         let b = dir.path().join("b.rs");
-        std::fs::write(&b, b"// SPDX-License-Identifier: MIT\n// Copyright (c) 2026 wendellmeset\n\nfn main() {}\n")
+        std::fs::write(&b, b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nfn main() {}\n")
             .unwrap();
         // c.rs: two headers (Ambiguous)
         let c = dir.path().join("c.rs");
         std::fs::write(
             &c,
-            b"// SPDX-License-Identifier: MIT\n\n// SPDX-License-Identifier: Apache-2.0\n\nx\n",
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\n// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: Apache-2.0\n\nx\n",
         )
         .unwrap();
 
@@ -138,7 +138,7 @@ mod tests {
     fn order_preserved_across_reordering() {
         let dir = tempdir().unwrap();
         let header =
-            b"// SPDX-License-Identifier: MIT\n// Copyright (c) 2026 wendellmeset\n\nfn main() {}\n";
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nfn main() {}\n";
 
         // Pair 1: a correct (Skipped), b missing (Updated).
         let a1 = dir.path().join("a1.rs");
