@@ -61,57 +61,57 @@ pub fn summarize(results: &[Result<FileOutcome>], paths: &[PathBuf], verbose: bo
 impl Summary {
     /// Render the report, showing paths relative to `root`.
     pub fn render(&self, root: &Path) -> String {
-    let mut out = format!(
-        "Scanned {}, updated {}, skipped {}.\n",
-        self.scanned, self.updated, self.skipped
-    );
+        let mut out = format!(
+            "Scanned {}, updated {}, skipped {}.\n",
+            self.scanned, self.updated, self.skipped
+        );
 
-    if !self.ambiguous.is_empty() {
-        out.push('\n');
-        out.push_str("Ambiguous header (skipped):\n");
-        for (path, lines) in &self.ambiguous {
-            let rel = helpers::relative_display(root, path);
-            let line_str = lines
-                .iter()
-                .map(usize::to_string)
-                .collect::<Vec<_>>()
-                .join(", ");
+        if !self.ambiguous.is_empty() {
+            out.push('\n');
+            out.push_str("Ambiguous header (skipped):\n");
+            for (path, lines) in &self.ambiguous {
+                let rel = helpers::relative_display(root, path);
+                let line_str = lines
+                    .iter()
+                    .map(usize::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                out.push_str(&format!(
+                    "  {rel} — {} license headers at lines {line_str}\n",
+                    lines.len()
+                ));
+            }
+        }
+
+        if !self.errors.is_empty() {
+            out.push('\n');
+            out.push_str("Errors:\n");
+            for (path, msg) in &self.errors {
+                let rel = helpers::relative_display(root, path);
+                out.push_str(&format!("  {rel} — {msg}\n"));
+            }
+        }
+
+        out
+    }
+
+    /// Render one `updated: <relative path>` line per rewritten file, for stderr.
+    ///
+    /// Empty unless `verbose` is set. Paths are relative to `root`, matching the
+    /// summary's conventions.
+    pub fn render_verbose(&self, root: &Path) -> String {
+        if !self.verbose {
+            return String::new();
+        }
+        let mut out = String::new();
+        for path in &self.updated_paths {
             out.push_str(&format!(
-                "  {rel} — {} license headers at lines {line_str}\n",
-                lines.len()
+                "updated: {}\n",
+                helpers::relative_display(root, path)
             ));
         }
+        out
     }
-
-    if !self.errors.is_empty() {
-        out.push('\n');
-        out.push_str("Errors:\n");
-        for (path, msg) in &self.errors {
-            let rel = helpers::relative_display(root, path);
-            out.push_str(&format!("  {rel} — {msg}\n"));
-        }
-    }
-
-    out
-}
-
-/// Render one `updated: <relative path>` line per rewritten file, for stderr.
-///
-/// Empty unless `verbose` is set. Paths are relative to `root`, matching the
-/// summary's conventions.
-pub fn render_verbose(&self, root: &Path) -> String {
-    if !self.verbose {
-        return String::new();
-    }
-    let mut out = String::new();
-    for path in &self.updated_paths {
-        out.push_str(&format!(
-            "updated: {}\n",
-            helpers::relative_display(root, path)
-        ));
-    }
-    out
-}
 }
 
 fn lines_of(blocks: &[HeaderBlock]) -> Vec<usize> {

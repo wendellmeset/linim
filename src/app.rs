@@ -47,11 +47,16 @@ pub fn run(args: Args) -> Result<bool> {
             (entry, info)
         }
         _ => {
-            let entry = if let Some(spdx) = crate::license::detect::detect(&args.path)? {
-                // An existing, recognized LICENSE means no picker needed.
-                registry::by_spdx(&spdx)?
+            // `--new` bypasses `.linim` and any existing `LICENSE`: always
+            // prompt. Without `--new`, a recognized LICENSE skips the picker.
+            let detected = if args.new {
+                None
             } else {
-                picker::pick()?
+                crate::license::detect::detect(&args.path)?
+            };
+            let entry = match detected {
+                Some(spdx) => registry::by_spdx(&spdx)?,
+                None => picker::pick()?,
             };
             let info = copyright::resolve(None)?;
             (entry, info)

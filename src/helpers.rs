@@ -17,10 +17,10 @@ use std::path::Path;
 /// line *without* its trailing `\n` (a trailing `\r` from CRLF is kept). No
 /// allocation is performed and no `Vec` of lines is built.
 ///
-/// # Safety contract
-///
-/// The caller must pass buffer bytes that are valid UTF-8 in the scanned
-/// region. Source files are text, so this holds for every intended use.
+/// Lines are validated as UTF-8. If the buffer contains a non-UTF-8 line (for
+/// example Latin-1 bytes in a comment), iteration ends at that line instead of
+/// yielding an invalid `&str`, so callers that track byte offsets always see
+/// valid, consecutive lines.
 pub fn lines_upto(buf: &[u8], limit: usize) -> impl Iterator<Item = &str> + '_ {
     let end = buf.len().min(limit);
     LinesUpto {
@@ -50,11 +50,12 @@ impl<'a> Iterator for LinesUpto<'a> {
             None => self.buf.len(),
         };
         let line = &self.buf[self.pos..end];
-        // `self.buf` is a prefix of `buf`, which the caller guaranteed is
-        // valid UTF-8 (see `lines_upto`). Each `line` is a sub-slice of it, so
-        // it is also valid UTF-8.
         self.pos = end + 1;
-        Some(unsafe { std::str::from_utf8_unchecked(line) })
+        // Validate rather than trusting the caller: source files can contain
+        // non-UTF-8 bytes (e.g. Latin-1 in a comment). A non-UTF-8 line ends
+        // iteration cleanly, so callers never receive an invalid `&str` and
+        // the byte offsets they track stay consistent.
+        std::str::from_utf8(line).ok()
     }
 }
 
@@ -266,6 +267,17 @@ mod tests {
     fn lines_byte_limit_mid_line() {
         // "hello\nworld" with a limit of 7 bytes scans "hello\nw".
         assert_eq!(lines_upto(b"hello\nworld", 7).collect::<Vec<_>>(), vec!["hello", "w"]);
+    }
+
+    #[test]
+    fn lines_stop_at_invalid_utf8() {
+        // A non-UTF-8 byte ends iteration rather than yielding an invalid str.
+        // 10 is the newline byte; 0xff is not valid UTF-8.
+        let buf = vec![
+            b'o', b'k', 10, 0xff, b' ', b'b', b'a', b'd', 10, b'n', b'e', b'v', b'e', b'r',
+        ];
+        let lines: Vec<&str> = lines_upto(&buf, 64).collect();
+        assert_eq!(lines, vec!["ok"]);
     }
 
     #[test]
