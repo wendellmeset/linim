@@ -8,7 +8,7 @@ injects or updates SPDX-copyright headers at the top of every source file that
 supports comments.
 
 [![GitHub Downloads](https://img.shields.io/github/downloads/wendellmeset/linim/total?style=for-the-badge&logo=github&logoColor=white&label=TOTAL+DOWNLOADS&color=333333)](https://github.com/wendellmeset/linim/releases)
-[![GitHub License](https://img.shields.io/github/license/wendellmeset/linim?style=for-the-badge&logo=github&logoColor=white&label=LICENSE&color=333333)](https://github.com/wendellmeset/linim/blob/master/LICENSE)
+[![GitHub License](https://img.shields.io/github/license/wendellmeset/linim?style=for-the-badge&logo=github&logoColor=white&label=LICENSE&color=333333)](https://github.com/wendellmeset/linim/blob/main/LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/wendellmeset/linim?style=for-the-badge&logo=github&logoColor=white&label=LATEST+RELEASE&color=333333)](https://github.com/wendellmeset/linim/releases/latest)
 
 ## Install
