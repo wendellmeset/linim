@@ -112,7 +112,7 @@ mod tests {
         use clap::CommandFactory;
         let cmd = Args::command();
         let version = cmd.render_version().to_string();
-        assert!(version.contains("0.1.0"), "{version}");
+        assert!(version.contains(env!("CARGO_PKG_VERSION")), "{version}");
     }
 
     #[test]
