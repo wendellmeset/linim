@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Substitute placeholders into a license body to produce the final `LICENSE`
 //! text.
 //!

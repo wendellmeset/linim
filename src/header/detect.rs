@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Find existing license headers in the top window of a file.
 //!
 //! Purely detection: produces spans and extracted fields, never edits. Uses

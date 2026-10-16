@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Header layer: comment styles, preamble detection, existing-header
 //! detection, stripping, and injection.
 

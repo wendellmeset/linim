@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Insert a rendered header at the preamble's byte offset.
 //!
 //! Pure byte manipulation, no I/O. Splices `rendered` into `buf` just after the

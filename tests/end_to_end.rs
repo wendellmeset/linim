@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! End-to-end tests: run the actual `linim` binary against scratch repos.
 //!
 //! Interactive flows are avoided by pre-populating `.linim`, so no picker or

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Embedded SPDX license registry: pure data plus lookup.
 //!
 //! No I/O and no per-run state: the registry is immutable data accessed by

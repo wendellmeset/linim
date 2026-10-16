@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Argument surface and parsing.
 //!
 //! `clap` handles usage errors (prints to stderr, exits non-zero) and `--help`

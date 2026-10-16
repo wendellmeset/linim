@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Static file-extension → comment-style table and lookup.
 //!
 //! Pure data plus a single lookup function; no I/O. Extensions are normalized

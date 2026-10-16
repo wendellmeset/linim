@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Extension-based policy: which files linim knows a comment syntax for.
 //!
 //! Pure and deterministic: no filesystem access, no traversal. This is *our*

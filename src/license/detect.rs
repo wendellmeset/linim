@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Identify an existing `LICENSE` file's SPDX identifier.
 //!
 //! Lets a first run on a repo that already has a recognized license skip the

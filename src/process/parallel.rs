@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Run per-file processing across rayon's thread pool, preserving input order.
 //!
 //! Pure concurrency policy: no walking, no summary, no progress output. Uses

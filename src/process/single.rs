@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Per-file orchestration: read, detect, compare, and rewrite as needed.
 //!
 //! The fast path reads only the first 8 KB and skips writes for correct files;

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! The crate-wide error type.
 //!
 //! A single [`LinimError`] enum covers every failure the tool can hit. There is

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Aggregate per-file results into a human-readable report.
 //!
 //! Pure aggregation and formatting: no file access, no parallel logic. The

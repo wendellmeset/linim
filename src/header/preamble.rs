@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Detect the "preamble": leading lines that must stay above any injected
 //! license header (shebangs, encoding cookies, XML/PHP/doctype/charset lines).
 //!

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Read and write the `.linim` project state file.
 //!
 //! Dumb storage: records the project's four licensing decisions and nothing

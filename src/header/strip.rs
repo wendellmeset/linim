@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Remove a detected license-header block from a buffer.
 //!
 //! Pure byte manipulation, no I/O. Removes the block's span plus any trailing

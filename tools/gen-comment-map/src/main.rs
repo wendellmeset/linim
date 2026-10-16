@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Generate the static extension → comment-style table for linim from tokei's
 //! `languages.json`.
 //!

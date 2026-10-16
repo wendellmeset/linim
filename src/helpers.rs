@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Small, top-level pure utility functions shared by two or more domain modules.
 //!
 //! Everything here is `std`-only, has no I/O, holds no global state, and never

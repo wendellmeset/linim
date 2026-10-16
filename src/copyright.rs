@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Resolve the copyright holder and year.
 //!
 //! The entire copyright layer: either read from stored state or prompt the

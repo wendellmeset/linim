@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Exact strings shown in `--help`.
 //!
 //! Kept separate from `args.rs` so the help text is explicit and reviewable

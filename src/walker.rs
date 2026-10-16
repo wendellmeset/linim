@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Directory traversal: walks a repo with `ignore`, applying our extension
 //! policy to each file.
 //!

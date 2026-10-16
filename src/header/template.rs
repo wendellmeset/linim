@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Build the canonical linim header and render it as a comment block.
 //!
 //! Pure: primitives in, strings out. The template is built once at startup and

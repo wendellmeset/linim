@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! linim: manage a project's open-source licensing in one command.
 //!
 //! The library crate holds the domain modules; the binary is a thin CLI on top.

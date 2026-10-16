@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 wendellmeset
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! The top-level pipeline: turn parsed arguments into a finished run.
 //!
 //! Returns `true` if any file hit an error during processing (so `main.rs` can
