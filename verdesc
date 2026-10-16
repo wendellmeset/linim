@@ -1,1 +1,1 @@
-Initial release of linim, a fast command-line tool for managing an open source project's license in one command.
+Second initial release of linim, a fast command-line tool for managing an open source project's license in one command. This update fixes some minor issues I found while reviewing the code.

@@ -25,7 +25,7 @@ If applicable, paste the full `--verbose` output, the error message, or a minima
 **Environment (please complete the following information):**
  - OS: [e.g. Windows 11 26H2, Ubuntu 26.04.1 LTS, macOS 27]
  - Rust and Cargo Version: [Put "executable" if running the release binary and not from source]
- - linim version: [e.g. 1.0.0]
+ - linim version: [e.g. 1.0.1]
 
 **Additional context**
 Add any other context about the problem here.
