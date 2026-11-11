@@ -56,13 +56,10 @@ pub enum Detection {
 
 /// Detect license headers in the top window of `buf`.
 pub fn detect(buf: &[u8], preamble: &Preamble, style: CommentStyle) -> Detection {
-    let mut iter = helpers::lines_upto(buf, buf.len()).peekable();
-    // Skip the preamble lines; `preamble.byte_offset` is the start of the
-    // first non-preamble line.
-    for _ in 0..preamble.line_count {
-        let _ = iter.next();
-    }
-    let mut pos = preamble.byte_offset;
+    // Start right after the preamble. Slicing by bytes instead of skipping
+    // `line_count` lines also steps over a byte order mark.
+    let mut pos = preamble.byte_offset.min(buf.len());
+    let mut iter = helpers::lines_upto(&buf[pos..], buf.len() - pos).peekable();
     let mut line_idx = preamble.line_count;
     let window_end = preamble.line_count + TOP_WINDOW_LINES;
     let mut blocks: Vec<HeaderBlock> = Vec::new();

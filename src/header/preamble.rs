@@ -10,6 +10,9 @@
 
 use crate::helpers;
 
+/// The UTF-8 byte order mark.
+const UTF8_BOM: &[u8] = b"\xEF\xBB\xBF";
+
 /// The detected preamble at the top of a file.
 pub struct Preamble {
     /// How many leading lines are preamble.
@@ -25,10 +28,13 @@ pub struct Preamble {
 /// doctype. A shebang on line 1 may additionally stack with a Python encoding
 /// cookie on line 2.
 pub fn detect(buf: &[u8]) -> Preamble {
-    let mut lines = helpers::lines_upto(buf, buf.len());
+    // A UTF-8 BOM has to stay first, so it's always preamble. It isn't a line
+    // of its own: line 1 starts right after it.
+    let bom = if buf.starts_with(UTF8_BOM) { UTF8_BOM.len() } else { 0 };
+    let mut lines = helpers::lines_upto(&buf[bom..], buf.len() - bom);
     let mut line_count = 0;
-    let mut byte_offset = 0;
-    let mut pos = 0;
+    let mut byte_offset = bom;
+    let mut pos = bom;
 
     let Some(line1) = lines.next() else {
         return Preamble {
@@ -137,6 +143,24 @@ mod tests {
     fn empty_buffer() {
         let p = detect(b"");
         assert_eq!((p.line_count, p.byte_offset), (0, 0));
+    }
+
+    #[test]
+    fn bom_only_is_preamble_but_not_a_line() {
+        let p = detect(b"\xEF\xBB\xBFusing System;\n");
+        assert_eq!((p.line_count, p.byte_offset), (0, 3));
+    }
+
+    #[test]
+    fn bom_then_shebang() {
+        let p = detect(b"\xEF\xBB\xBF#!/bin/sh\nrest\n");
+        assert_eq!((p.line_count, p.byte_offset), (1, 13));
+    }
+
+    #[test]
+    fn bom_then_shebang_and_cookie() {
+        let p = detect(b"\xEF\xBB\xBF#!/usr/bin/env python3\n# coding: utf-8\nbody\n");
+        assert_eq!((p.line_count, p.byte_offset), (2, 42));
     }
 
     #[test]

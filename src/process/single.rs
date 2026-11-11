@@ -200,6 +200,37 @@ mod tests {
     }
 
     #[test]
+    fn bom_stays_first_when_header_added() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("Program.cs");
+        std::fs::write(&path, b"\xEF\xBB\xBFusing System;\n").unwrap();
+        let ctx = ctx("MIT", "wendellmeset", 2026);
+        assert_eq!(process_file(&path, &ctx).unwrap(), FileOutcome::Updated);
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"\xEF\xBB\xBF// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nusing System;\n"
+        );
+        // The header after the BOM is found on the next run, not added again.
+        assert_eq!(process_file(&path, &ctx).unwrap(), FileOutcome::Skipped);
+    }
+
+    #[test]
+    fn bom_stays_first_when_header_replaced() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tool.py");
+        std::fs::write(
+            &path,
+            b"\xEF\xBB\xBF#!/usr/bin/env python3\n# SPDX-FileCopyrightText: 2025 wendellmeset\n# SPDX-License-Identifier: MIT\n\nprint('hi')\n",
+        )
+        .unwrap();
+        assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Updated);
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"\xEF\xBB\xBF#!/usr/bin/env python3\n# SPDX-FileCopyrightText: 2026 wendellmeset\n# SPDX-License-Identifier: MIT\n\nprint('hi')\n"
+        );
+    }
+
+    #[test]
     fn two_headers_are_ambiguous_and_unchanged() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("main.rs");
