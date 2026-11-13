@@ -1,1 +1,5 @@
-Second initial release of linim, a fast command-line tool for managing an open source project's license in one command. This update fixes some minor issues I found while reviewing the code.
+Third release of linim, a fast command-line tool for managing an open source project's license in one command.
+
+This update brings various upgrades, firstly, a new `--check` flag for read-only header verification. Additionally, a `--license` flag has been introduced to allow selecting a license non-interactively.
+
+On top of those new features, this update brings various fixes, CRLF line endings are properly preserved now, a UTF-8 BOM is now kept at the start of the file, and comments next to an SPDX header are no longer deleted.
