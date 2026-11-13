@@ -236,6 +236,61 @@ pub fn trim_trailing_newlines(s: &str) -> &str {
     s.trim_end_matches(['\n', '\r'])
 }
 
+/// The line ending used by a file.
+///
+/// Headers are rendered with `\n`; this type adapts that output to the file
+/// being edited so a CRLF checkout never gets mixed line endings.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum LineEnding {
+    /// Unix-style `\n`.
+    Lf,
+    /// Windows-style `\r\n`.
+    Crlf,
+}
+
+impl LineEnding {
+    /// Detect the ending from the first line terminator in `buf`.
+    ///
+    /// A file with no terminator, or whose terminator is not `\r\n`,
+    /// defaults to LF. The first terminator is the file's declared convention;
+    /// mixed-ending files are ambiguous and not second-guessed.
+    pub fn detect(buf: &[u8]) -> Self {
+        match buf.iter().position(|&b| b == b'\n') {
+            Some(0) => LineEnding::Lf,
+            Some(i) if buf[i - 1] == b'\r' => LineEnding::Crlf,
+            _ => LineEnding::Lf,
+        }
+    }
+
+    /// The raw bytes of this ending.
+    pub fn as_bytes(self) -> &'static [u8] {
+        match self {
+            LineEnding::Lf => b"\n",
+            LineEnding::Crlf => b"\r\n",
+        }
+    }
+
+    /// Append `text` to `out`, replacing every `\n` with this ending.
+    ///
+    /// `text` is expected to be LF-only (the header renderer's output). LF
+    /// copies bytes through untouched; CRLF inserts a `\r` before each `\n`.
+    pub fn encode_into(self, out: &mut Vec<u8>, text: &str) {
+        match self {
+            LineEnding::Lf => out.extend_from_slice(text.as_bytes()),
+            LineEnding::Crlf => {
+                let mut lines = text.split('\n');
+                if let Some(first) = lines.next() {
+                    out.extend_from_slice(first.as_bytes());
+                    for line in lines {
+                        out.extend_from_slice(b"\r\n");
+                        out.extend_from_slice(line.as_bytes());
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -443,6 +498,66 @@ mod tests {
             relative_display(Path::new("/proj"), Path::new("/other/x")),
             "/other/x"
         );
+    }
+
+    #[test]
+    fn line_ending_detect_lf() {
+        assert_eq!(LineEnding::detect(b"a\nb\n"), LineEnding::Lf);
+    }
+
+    #[test]
+    fn line_ending_detect_crlf() {
+        assert_eq!(LineEnding::detect(b"a\r\nb\r\n"), LineEnding::Crlf);
+    }
+
+    #[test]
+    fn line_ending_detect_empty() {
+        assert_eq!(LineEnding::detect(b""), LineEnding::Lf);
+    }
+
+    #[test]
+    fn line_ending_detect_no_terminator() {
+        assert_eq!(LineEnding::detect(b"no newline here"), LineEnding::Lf);
+    }
+
+    #[test]
+    fn line_ending_detect_uses_first_terminator() {
+        assert_eq!(LineEnding::detect(b"a\r\nb\n"), LineEnding::Crlf);
+        assert_eq!(LineEnding::detect(b"a\nb\r\n"), LineEnding::Lf);
+    }
+
+    #[test]
+    fn line_ending_as_bytes() {
+        assert_eq!(LineEnding::Lf.as_bytes(), b"\n");
+        assert_eq!(LineEnding::Crlf.as_bytes(), b"\r\n");
+    }
+
+    #[test]
+    fn line_ending_encode_lf() {
+        let mut out = Vec::new();
+        LineEnding::Lf.encode_into(&mut out, "a\nb\n\n");
+        assert_eq!(out, b"a\nb\n\n");
+    }
+
+    #[test]
+    fn line_ending_encode_crlf() {
+        let mut out = Vec::new();
+        LineEnding::Crlf.encode_into(&mut out, "a\nb\n\n");
+        assert_eq!(out, b"a\r\nb\r\n\r\n");
+    }
+
+    #[test]
+    fn line_ending_encode_empty() {
+        let mut out = Vec::new();
+        LineEnding::Crlf.encode_into(&mut out, "");
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn line_ending_encode_without_trailing_newline() {
+        let mut out = Vec::new();
+        LineEnding::Crlf.encode_into(&mut out, "a\nb");
+        assert_eq!(out, b"a\r\nb");
     }
 
     #[test]

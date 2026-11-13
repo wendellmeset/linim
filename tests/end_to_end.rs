@@ -137,6 +137,26 @@ fn nonexistent_path_errors() {
 }
 
 #[test]
+fn crlf_file_keeps_crlf_header() {
+    let dir = tempdir().unwrap();
+    write_state(dir.path());
+    fs::write(dir.path().join("main.rs"), b"fn main() {}\r\n").unwrap();
+
+    let out = run(dir.path(), &[]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let bytes = fs::read(dir.path().join("main.rs")).unwrap();
+    assert_eq!(
+        bytes,
+        b"// SPDX-FileCopyrightText: 2026 wendellmeset\r\n// SPDX-License-Identifier: MIT\r\n\r\nfn main() {}\r\n"
+    );
+
+    let again = run(dir.path(), &[]);
+    assert!(again.status.success());
+    assert!(stdout(&again).contains("updated 0, skipped 1"));
+    assert_eq!(fs::read(dir.path().join("main.rs")).unwrap(), bytes);
+}
+
+#[test]
 fn verbose_lists_updated_files_to_stderr() {
     let dir = tempdir().unwrap();
     write_state(dir.path());

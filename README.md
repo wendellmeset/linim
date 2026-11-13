@@ -58,6 +58,8 @@ Key properties:
 - **Safe.** Files with two or more qualifying headers are reported and left
   alone, never modified. Shebangs, encoding cookies, doctypes, and other
   preambles are preserved above the injected header.
+- **Line-ending aware.** Injected headers use the file's existing line ending,
+  so CRLF checkouts on Windows do not get mixed-ending diffs.
 - **Deterministic.** Processing is parallel (rayon) but the report and
   per-file listing are in sorted path order.
 

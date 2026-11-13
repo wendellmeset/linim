@@ -80,8 +80,9 @@ pub fn process_file(path: &Path, ctx: &Context) -> Result<FileOutcome> {
         Detection::None => {
             // Rewrite path: no strip needed.
             let full = if has_full { buf } else { read_full(path)? };
+            let ending = helpers::LineEnding::detect(&full);
             let rendered = ctx.template.render(style);
-            let new_buf = inject::inject(&full, &preamble, &rendered);
+            let new_buf = inject::inject(&full, &preamble, &rendered, ending);
             write_all(path, &new_buf)?;
             Ok(FileOutcome::Updated)
         }
@@ -90,9 +91,10 @@ pub fn process_file(path: &Path, ctx: &Context) -> Result<FileOutcome> {
                 return Ok(FileOutcome::Skipped);
             }
             let full = if has_full { buf } else { read_full(path)? };
+            let ending = helpers::LineEnding::detect(&full);
             let stripped = strip::strip(&full, &block);
             let rendered = ctx.template.render(style);
-            let new_buf = inject::inject(&stripped, &preamble, &rendered);
+            let new_buf = inject::inject(&stripped, &preamble, &rendered, ending);
             write_all(path, &new_buf)?;
             Ok(FileOutcome::Updated)
         }
@@ -287,6 +289,64 @@ mod tests {
         assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Updated);
         let out = String::from_utf8(std::fs::read(&path).unwrap()).unwrap();
         assert!(out.starts_with("#!/usr/bin/env python3\n# SPDX-FileCopyrightText: 2026 wendellmeset\n# SPDX-License-Identifier: MIT\n"));
+    }
+
+    /// Assert every line terminator is CRLF and no lone `\r` exists.
+    fn assert_crlf(buf: &[u8]) {
+        for (i, &b) in buf.iter().enumerate() {
+            if b == b'\n' {
+                assert!(i > 0 && buf[i - 1] == b'\r', "bare LF at byte {i}");
+            }
+            if b == b'\r' {
+                assert_eq!(buf.get(i + 1), Some(&b'\n'), "bare CR at byte {i}");
+            }
+        }
+    }
+
+    #[test]
+    fn crlf_file_gets_crlf_header() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("main.rs");
+        std::fs::write(&path, b"fn main() {}\r\n").unwrap();
+        let ctx = ctx("MIT", "wendellmeset", 2026);
+        assert_eq!(process_file(&path, &ctx).unwrap(), FileOutcome::Updated);
+        let out = std::fs::read(&path).unwrap();
+        assert_eq!(
+            out,
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\r\n// SPDX-License-Identifier: MIT\r\n\r\nfn main() {}\r\n"
+        );
+        assert_crlf(&out);
+        // A second run sees a correct header and leaves the file alone.
+        assert_eq!(process_file(&path, &ctx).unwrap(), FileOutcome::Skipped);
+        assert_eq!(std::fs::read(&path).unwrap(), out);
+    }
+
+    #[test]
+    fn crlf_old_header_is_replaced_with_crlf() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("main.rs");
+        std::fs::write(
+            &path,
+            b"// SPDX-FileCopyrightText: 2025 wendellmeset\r\n// SPDX-License-Identifier: Apache-2.0\r\n\r\nfn main() {}\r\n",
+        )
+        .unwrap();
+        assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Updated);
+        let out = std::fs::read(&path).unwrap();
+        assert_eq!(
+            out,
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\r\n// SPDX-License-Identifier: MIT\r\n\r\nfn main() {}\r\n"
+        );
+        assert_crlf(&out);
+    }
+
+    #[test]
+    fn lf_file_stays_lf() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("main.rs");
+        std::fs::write(&path, b"fn main() {}\n").unwrap();
+        assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Updated);
+        let out = std::fs::read(&path).unwrap();
+        assert!(!out.contains(&b'\r'), "LF file gained a CR");
     }
 
     #[test]
