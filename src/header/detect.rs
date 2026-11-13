@@ -84,33 +84,33 @@ pub fn detect(buf: &[u8], preamble: &Preamble, style: CommentStyle) -> Detection
                 if !trimmed.starts_with(token) {
                     break; // code line: top window is done
                 }
-                let block_start_line = line_idx;
-                let block_start_byte = start;
+                let run_start_line = line_idx;
+                let doc = is_doc_comment(content, token);
                 let mut inner = vec![comment_text(content, style).unwrap()];
-                let mut block_end_line = line_idx;
-                let mut block_end_byte = end;
+                let mut spans = vec![(start, end)]; // byte range of each line
 
                 // Extend while the next line is also a comment (peek, don't
                 // consume, so the terminating line is left for the outer loop).
+                // A doc comment (`///`, `//!`) ends a plain comment run.
                 while let Some(next) = iter.peek() {
-                    if !next.trim_start().starts_with(token) {
+                    if !next.trim_start().starts_with(token) || is_doc_comment(next, token) != doc {
                         break;
                     }
                     let nc = iter.next().unwrap();
                     let ne = pos + line_len(buf, pos, nc);
-                    pos = ne;
                     inner.push(comment_text(nc, style).unwrap());
-                    block_end_line += 1;
-                    block_end_byte = ne;
+                    spans.push((pos, ne));
+                    pos = ne;
                     line_idx += 1;
                 }
 
+                let (first, last) = header_span(&inner);
                 if let Some(block) = qualify(
-                    &inner,
-                    block_start_line,
-                    block_end_line,
-                    block_start_byte,
-                    block_end_byte,
+                    &inner[first..=last],
+                    run_start_line + first,
+                    run_start_line + last,
+                    spans[first].0,
+                    spans[last].1,
                 ) {
                     blocks.push(block);
                 }
@@ -198,6 +198,45 @@ fn comment_text(line: &str, style: CommentStyle) -> Option<&str> {
             Some(t.trim())
         }
     }
+}
+
+/// Whether `line` is a `///` or `//!` doc comment. `////` is a separator line,
+/// not a doc comment.
+fn is_doc_comment(line: &str, token: &str) -> bool {
+    if token != "//" {
+        return false;
+    }
+    match line.trim_start().strip_prefix("//").map(str::as_bytes) {
+        Some([b'!', ..]) => true,
+        Some([b'/', b'/', ..]) => false,
+        Some([b'/', ..]) => true,
+        _ => false,
+    }
+}
+
+/// First and last line (inclusive) of the header within a comment run.
+///
+/// With an SPDX identifier, the header runs from the first to the last SPDX or
+/// copyright line, plus any empty comment lines after it. Other comments in the
+/// same run are left alone. Old-style headers have no clear end, so they keep
+/// using the whole run.
+fn header_span(inner: &[&str]) -> (usize, usize) {
+    let whole = (0, inner.len() - 1);
+    if !inner
+        .iter()
+        .any(|l| l.starts_with("SPDX-License-Identifier:"))
+    {
+        return whole;
+    }
+    let is_tag = |l: &&str| l.starts_with("SPDX-") || is_copyright_line(l);
+    let (Some(first), Some(mut last)) = (inner.iter().position(is_tag), inner.iter().rposition(is_tag))
+    else {
+        return whole;
+    };
+    while last + 1 < inner.len() && inner[last + 1].is_empty() {
+        last += 1;
+    }
+    (first, last)
 }
 
 /// Whether a comment line is a copyright line: the REUSE `SPDX-FileCopyrightText:`
@@ -432,6 +471,60 @@ mod tests {
                 assert_eq!(b.end_line, 2);
                 assert_eq!(b.spdx.as_deref(), Some("MIT"));
             }
+            other => panic!("expected Single, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn description_right_below_spdx_is_not_header() {
+        let header = "// SPDX-FileCopyrightText: 2025 wendellmeset\n// SPDX-License-Identifier: MIT\n";
+        let buf = format!("{header}// Parses config files.\nfn main() {{}}\n");
+        match detect(buf.as_bytes(), &pre(), CommentStyle::SingleLine("//")) {
+            Detection::Single(b) => {
+                assert_eq!((b.start_line, b.end_line), (0, 1));
+                assert_eq!((b.start_byte, b.end_byte), (0, header.len()));
+            }
+            other => panic!("expected Single, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn description_right_above_spdx_is_not_header() {
+        let above = "// Parses config files.\n";
+        let header = "// SPDX-License-Identifier: MIT\n";
+        let buf = format!("{above}{header}fn main() {{}}\n");
+        match detect(buf.as_bytes(), &pre(), CommentStyle::SingleLine("//")) {
+            Detection::Single(b) => {
+                assert_eq!((b.start_line, b.end_line), (1, 1));
+                assert_eq!((b.start_byte, b.end_byte), (above.len(), above.len() + header.len()));
+            }
+            other => panic!("expected Single, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn empty_comment_lines_after_spdx_belong_to_header() {
+        let buf = b"# SPDX-License-Identifier: MIT\n#\n# Build helpers.\n";
+        match detect(buf, &pre(), CommentStyle::SingleLine("#")) {
+            Detection::Single(b) => assert_eq!((b.start_line, b.end_line), (0, 1)),
+            other => panic!("expected Single, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rust_doc_comment_right_below_header_is_not_header() {
+        let buf = b"// SPDX-License-Identifier: MIT\n//! Crate docs.\n//! More docs.\n";
+        match detect(buf, &pre(), CommentStyle::SingleLine("//")) {
+            Detection::Single(b) => assert_eq!((b.start_line, b.end_line), (0, 0)),
+            other => panic!("expected Single, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn slash_separator_lines_are_not_doc_comments() {
+        let buf = b"////////\n// Copyright (c) 2020 wendellmeset\n// Permission is hereby granted, free of charge\n////////\n";
+        match detect(buf, &pre(), CommentStyle::SingleLine("//")) {
+            Detection::Single(b) => assert_eq!((b.start_line, b.end_line), (0, 3)),
             other => panic!("expected Single, got {other:?}"),
         }
     }
