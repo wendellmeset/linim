@@ -13,11 +13,10 @@ use std::io;
 use crate::cli::args::Args;
 use crate::copyright;
 use crate::error::{LinimError, Result};
-use crate::header::template;
 use crate::helpers;
 use crate::license::{picker, registry};
 use crate::process::parallel;
-use crate::process::single::Context;
+use crate::process::single::{Context, Mode};
 use crate::process::summary;
 use crate::state::{self, State};
 use crate::walker;
@@ -66,8 +65,9 @@ fn resolve(
     Ok((entry, info))
 }
 
-/// Run the full pipeline. `Ok(true)` means files failed; `Ok(false)` means a
-/// clean run (with or without changes).
+/// Run the full pipeline. `Ok(true)` means the run should exit non-zero:
+/// a file failed, or `--check` found drift. `Ok(false)` means a clean run
+/// (with or without changes).
 pub fn run(args: Args) -> Result<bool> {
     // Phase 1: fail fast if the path is unusable.
     if !args.path.is_dir() {
@@ -75,6 +75,12 @@ pub fn run(args: Args) -> Result<bool> {
             &args.path,
             io::Error::new(io::ErrorKind::NotFound, "path is not a directory"),
         ));
+    }
+
+    // `--check` is a separate, read-only pipeline: it never resolves
+    // interactively, never writes LICENSE/.linim, and never rewrites headers.
+    if args.check {
+        return check(&args);
     }
 
     // Phase 2: read the existing `.linim`, if any.
@@ -115,22 +121,36 @@ pub fn run(args: Args) -> Result<bool> {
 
     // Phase 8: build the per-run context, deriving expected values from the
     // template so nothing can drift from the rendered header.
-    let template = template::build(&new_state.spdx, &info.holder, info.year);
-    let ctx = Context {
-        expected_spdx: template.spdx_value.clone(),
-        expected_copyright: template.copyright_line.clone(),
-        template,
-    };
+    let ctx = Context::new(&new_state.spdx, &info.holder, info.year, Mode::Write);
 
     // Phase 9-10: walk and process.
     let paths = walker::collect_files(&args.path)?;
     let results = parallel::process_all(&paths, &ctx);
-    let summary = summary::summarize(&results, &paths, args.verbose);
+    let summary = summary::summarize(&results, &paths, args.verbose, Mode::Write);
 
     // Phase 11: report and report failure.
     if summary.verbose {
         eprint!("{}", summary.render_verbose(&args.path));
     }
     print!("{}", summary.render(&args.path));
-    Ok(!summary.errors.is_empty())
+    Ok(summary.has_failures())
+}
+
+/// Run the read-only header check behind `--check`.
+///
+/// Requires an existing `.linim`: the expected SPDX expression, holder, and
+/// year are the project's committed decisions. `--license` may override the
+/// expected SPDX for CI. Nothing is prompted and nothing is written; the check
+/// path stops before every rewrite rather than writing and diffing afterwards.
+fn check(args: &Args) -> Result<bool> {
+    let project = state::read(&args.path)?.ok_or(LinimError::StateFileMissing)?;
+    let spdx = args.license.as_deref().unwrap_or(&project.spdx);
+    let entry = registry::by_spdx(spdx)?;
+    let ctx = Context::new(entry.spdx, &project.holder, project.year, Mode::Check);
+
+    let paths = walker::collect_files(&args.path)?;
+    let results = parallel::process_all(&paths, &ctx);
+    let summary = summary::summarize(&results, &paths, args.verbose, Mode::Check);
+    print!("{}", summary.render(&args.path));
+    Ok(summary.has_failures())
 }

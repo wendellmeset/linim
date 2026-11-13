@@ -157,6 +157,106 @@ fn crlf_file_keeps_crlf_header() {
 }
 
 #[test]
+fn check_passes_when_headers_are_correct_and_writes_nothing() {
+    let dir = tempdir().unwrap();
+    write_state(dir.path());
+    let header =
+        "// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nfn main() {}\n";
+    fs::write(dir.path().join("main.rs"), header).unwrap();
+
+    let out = run(dir.path(), &["--check"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("Scanned 1, up to date 1, need update 0."), "{text}");
+    assert_eq!(fs::read_to_string(dir.path().join("main.rs")).unwrap(), header);
+    assert_eq!(fs::read_to_string(dir.path().join(".linim")).unwrap(), STATE);
+    // Check is read-only: it must not materialize LICENSE.
+    assert!(!dir.path().join("LICENSE").exists());
+}
+
+#[test]
+fn check_fails_on_missing_header_without_writing() {
+    let dir = tempdir().unwrap();
+    write_state(dir.path());
+    fs::write(dir.path().join("main.rs"), "fn main() {}\n").unwrap();
+
+    let out = run(dir.path(), &["--check"]);
+    assert!(!out.status.success());
+    let text = stdout(&out);
+    assert!(text.contains("need update 1"), "{text}");
+    assert!(text.contains("Missing or incorrect header:"), "{text}");
+    assert!(text.contains("main.rs"), "{text}");
+    assert_eq!(
+        fs::read_to_string(dir.path().join("main.rs")).unwrap(),
+        "fn main() {}\n"
+    );
+    assert!(!dir.path().join("LICENSE").exists());
+}
+
+#[test]
+fn check_fails_on_wrong_header_without_writing() {
+    let dir = tempdir().unwrap();
+    write_state(dir.path());
+    let wrong =
+        "// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: Apache-2.0\n\nfn main() {}\n";
+    fs::write(dir.path().join("main.rs"), wrong).unwrap();
+
+    let out = run(dir.path(), &["--check"]);
+    assert!(!out.status.success());
+    assert!(stdout(&out).contains("need update 1"), "{}", stdout(&out));
+    assert_eq!(fs::read_to_string(dir.path().join("main.rs")).unwrap(), wrong);
+}
+
+#[test]
+fn check_fails_on_ambiguous_header_without_writing() {
+    let dir = tempdir().unwrap();
+    write_state(dir.path());
+    let ambiguous = "// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\n// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: Apache-2.0\n\nfn main() {}\n";
+    fs::write(dir.path().join("main.rs"), ambiguous).unwrap();
+
+    let out = run(dir.path(), &["--check"]);
+    assert!(!out.status.success());
+    let text = stdout(&out);
+    assert!(text.contains("Ambiguous header (skipped):"), "{text}");
+    assert_eq!(
+        fs::read_to_string(dir.path().join("main.rs")).unwrap(),
+        ambiguous
+    );
+}
+
+#[test]
+fn check_requires_state_file() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("main.rs"), "fn main() {}\n").unwrap();
+
+    let out = run(dir.path(), &["--check"]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("no .linim state file found"),
+        "stderr: {}",
+        stderr(&out)
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("main.rs")).unwrap(),
+        "fn main() {}\n"
+    );
+    assert!(!dir.path().join("LICENSE").exists());
+}
+
+#[test]
+fn check_license_override_sets_expected_license() {
+    let dir = tempdir().unwrap();
+    write_state(dir.path());
+    let mit = "// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nfn main() {}\n";
+    fs::write(dir.path().join("main.rs"), mit).unwrap();
+
+    let out = run(dir.path(), &["--check", "--license", "Apache-2.0"]);
+    assert!(!out.status.success());
+    assert!(stdout(&out).contains("need update 1"), "{}", stdout(&out));
+    assert_eq!(fs::read_to_string(dir.path().join("main.rs")).unwrap(), mit);
+}
+
+#[test]
 fn verbose_lists_updated_files_to_stderr() {
     let dir = tempdir().unwrap();
     write_state(dir.path());

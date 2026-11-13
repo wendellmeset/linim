@@ -31,6 +31,9 @@ pub enum LinimError {
     /// The `.linim` state file is malformed or unreadable.
     StateFileInvalid { reason: String },
 
+    /// `--check` needs an existing `.linim` to know the expected header.
+    StateFileMissing,
+
     /// A file contains multiple qualifying license headers.
     AmbiguousHeader { path: PathBuf, lines: Vec<usize> },
 
@@ -108,6 +111,9 @@ impl fmt::Display for LinimError {
             }
             LinimError::StateFileInvalid { reason } => {
                 write!(f, "invalid .linim state file: {reason}")
+            }
+            LinimError::StateFileMissing => {
+                write!(f, "no .linim state file found; run linim once before --check")
             }
             LinimError::AmbiguousHeader { path, lines } => {
                 write!(
@@ -193,6 +199,13 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains(".linim"));
         assert!(msg.contains("bad format"));
+    }
+
+    #[test]
+    fn display_state_file_missing() {
+        let msg = LinimError::StateFileMissing.to_string();
+        assert!(msg.contains(".linim"));
+        assert!(msg.contains("--check"));
     }
 
     #[test]

@@ -31,6 +31,7 @@ linim [OPTIONS] [PATH]
 | `--new`         | Reconfigure from scratch, prompt for license and copyright, rewrite `LICENSE`, `.linim`, and every file's header. |
 | `--no-headers`  | Write or update `LICENSE` only. Do not touch source file headers.  |
 | `--license <SPDX>` | Pick the license by SPDX identifier instead of the interactive picker. |
+| `--check`       | Verify headers without writing. Exit 1 on any missing, wrong, or ambiguous header. |
 | `--verbose`     | Emit one line per updated file to stderr.                          |
 | `-h, --help`    | Print help.                                                        |
 | `-V, --version` | Print version.                                                     |
@@ -62,6 +63,16 @@ Key properties:
   so CRLF checkouts on Windows do not get mixed-ending diffs.
 - **Deterministic.** Processing is parallel (rayon) but the report and
   per-file listing are in sorted path order.
+
+## Check mode
+
+`linim --check` is a read-only CI check. It reads `.linim` for the expected
+license, holder, and year, walks the same files as a normal run, and reports
+every file whose header is missing, wrong, or ambiguous. It never writes
+`LICENSE`, `.linim`, or any source file, and exits non-zero on any drift.
+`--license <SPDX>` can override the expected identifier for the check only.
+
+A `.linim` file is required; run linim once to create it.
 
 ## State file (`.linim`)
 

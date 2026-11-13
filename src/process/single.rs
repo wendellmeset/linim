@@ -17,19 +17,30 @@ use crate::header::detect::{self, Detection, HeaderBlock};
 use crate::header::inject;
 use crate::header::preamble;
 use crate::header::strip;
-use crate::header::template::HeaderTemplate;
+use crate::header::template::{self, HeaderTemplate};
 use crate::helpers;
 
 /// Bytes read on the fast path; files this size or smaller never need a second
 /// read even when a rewrite is required.
 pub const FAST_PATH_BYTES: u64 = 8192;
 
+/// Whether a run rewrites files or only inspects them.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Mode {
+    /// Rewrite files whose header is missing or wrong.
+    #[default]
+    Write,
+    /// Inspect only: never write, and report what needs a change.
+    Check,
+}
+
 /// What happened to a file. Errors are not variants: they are `Err`s.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FileOutcome {
     /// The file already had a correct header (or was not modifiable); no write.
     Skipped,
-    /// The file was rewritten (header inserted or replaced).
+    /// The header was missing or wrong. Rewritten in [`Mode::Write`], left
+    /// untouched in [`Mode::Check`].
     Updated,
     /// The file had two or more qualifying headers; not modified.
     Ambiguous(Vec<HeaderBlock>),
@@ -43,6 +54,24 @@ pub struct Context {
     pub expected_copyright: String,
     /// The header template, rendered per file for the file's comment style.
     pub template: HeaderTemplate,
+    /// Whether to rewrite outdated files or only report them.
+    pub mode: Mode,
+}
+
+impl Context {
+    /// Build the run context from the resolved licensing decision.
+    ///
+    /// Expected values are derived from the rendered template so the
+    /// comparison and the written header can never drift apart.
+    pub fn new(spdx: &str, holder: &str, year: u16, mode: Mode) -> Self {
+        let template = template::build(spdx, holder, year);
+        Context {
+            expected_spdx: template.spdx_value.clone(),
+            expected_copyright: template.copyright_line.clone(),
+            template,
+            mode,
+        }
+    }
 }
 
 /// Process a single file, returning its outcome.
@@ -78,24 +107,29 @@ pub fn process_file(path: &Path, ctx: &Context) -> Result<FileOutcome> {
 
     match detection {
         Detection::None => {
-            // Rewrite path: no strip needed.
-            let full = if has_full { buf } else { read_full(path)? };
-            let ending = helpers::LineEnding::detect(&full);
-            let rendered = ctx.template.render(style);
-            let new_buf = inject::inject(&full, &preamble, &rendered, ending);
-            write_all(path, &new_buf)?;
+            // Rewrite path: no strip needed. Check mode stops before reading
+            // the rest of the file or building a replacement.
+            if ctx.mode == Mode::Write {
+                let full = if has_full { buf } else { read_full(path)? };
+                let ending = helpers::LineEnding::detect(&full);
+                let rendered = ctx.template.render(style);
+                let new_buf = inject::inject(&full, &preamble, &rendered, ending);
+                write_all(path, &new_buf)?;
+            }
             Ok(FileOutcome::Updated)
         }
         Detection::Single(block) => {
             if header_matches(&block, ctx) {
                 return Ok(FileOutcome::Skipped);
             }
-            let full = if has_full { buf } else { read_full(path)? };
-            let ending = helpers::LineEnding::detect(&full);
-            let stripped = strip::strip(&full, &block);
-            let rendered = ctx.template.render(style);
-            let new_buf = inject::inject(&stripped, &preamble, &rendered, ending);
-            write_all(path, &new_buf)?;
+            if ctx.mode == Mode::Write {
+                let full = if has_full { buf } else { read_full(path)? };
+                let ending = helpers::LineEnding::detect(&full);
+                let stripped = strip::strip(&full, &block);
+                let rendered = ctx.template.render(style);
+                let new_buf = inject::inject(&stripped, &preamble, &rendered, ending);
+                write_all(path, &new_buf)?;
+            }
             Ok(FileOutcome::Updated)
         }
         Detection::Ambiguous(blocks) => Ok(FileOutcome::Ambiguous(blocks)),
@@ -139,16 +173,14 @@ fn write_all(path: &Path, contents: &[u8]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::header::template;
     use tempfile::tempdir;
 
     fn ctx(spdx: &str, holder: &str, year: u16) -> Context {
-        let template = template::build(spdx, holder, year);
-        Context {
-            expected_spdx: spdx.to_string(),
-            expected_copyright: template.copyright_line.clone(),
-            template,
-        }
+        Context::new(spdx, holder, year, Mode::Write)
+    }
+
+    fn check_ctx(spdx: &str, holder: &str, year: u16) -> Context {
+        Context::new(spdx, holder, year, Mode::Check)
     }
 
     #[test]
@@ -355,6 +387,60 @@ mod tests {
         let path = dir.path().join("data.json");
         std::fs::write(&path, b"{}\n").unwrap();
         assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Skipped);
+    }
+
+    #[test]
+    fn check_mode_reports_missing_header_without_writing() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("main.rs");
+        let original = b"fn main() {}\n";
+        std::fs::write(&path, original).unwrap();
+        assert_eq!(
+            process_file(&path, &check_ctx("MIT", "wendellmeset", 2026)).unwrap(),
+            FileOutcome::Updated
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+    }
+
+    #[test]
+    fn check_mode_reports_wrong_header_without_writing() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("main.rs");
+        let original = b"// SPDX-FileCopyrightText: 2025 wendellmeset\n// SPDX-License-Identifier: Apache-2.0\n\nfn main() {}\n";
+        std::fs::write(&path, original).unwrap();
+        assert_eq!(
+            process_file(&path, &check_ctx("MIT", "wendellmeset", 2026)).unwrap(),
+            FileOutcome::Updated
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+    }
+
+    #[test]
+    fn check_mode_skips_correct_header() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("main.rs");
+        let original =
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nfn main() {}\n";
+        std::fs::write(&path, original).unwrap();
+        assert_eq!(
+            process_file(&path, &check_ctx("MIT", "wendellmeset", 2026)).unwrap(),
+            FileOutcome::Skipped
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+    }
+
+    #[test]
+    fn check_mode_leaves_ambiguous_file_alone() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("main.rs");
+        let original =
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\n// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: Apache-2.0\n\ncode\n";
+        std::fs::write(&path, original).unwrap();
+        match process_file(&path, &check_ctx("MIT", "wendellmeset", 2026)).unwrap() {
+            FileOutcome::Ambiguous(blocks) => assert_eq!(blocks.len(), 2),
+            other => panic!("expected Ambiguous, got {other:?}"),
+        }
+        assert_eq!(std::fs::read(&path).unwrap(), original);
     }
 
     #[test]

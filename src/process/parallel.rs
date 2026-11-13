@@ -24,17 +24,15 @@ pub fn process_all(paths: &[PathBuf], ctx: &Context) -> Vec<Result<FileOutcome>>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::process::single::FileOutcome;
-    use crate::header::template;
+    use crate::process::single::{FileOutcome, Mode};
     use tempfile::tempdir;
 
     fn ctx(spdx: &str, holder: &str, year: u16) -> Context {
-        let template = template::build(spdx, holder, year);
-        Context {
-            expected_spdx: spdx.to_string(),
-            expected_copyright: template.copyright_line.clone(),
-            template,
-        }
+        Context::new(spdx, holder, year, Mode::Write)
+    }
+
+    fn check_ctx(spdx: &str, holder: &str, year: u16) -> Context {
+        Context::new(spdx, holder, year, Mode::Check)
     }
 
     /// Classify results into comparable strings (avoids needing `PartialEq` on
@@ -49,6 +47,23 @@ mod tests {
                 Err(_) => "err",
             })
             .collect()
+    }
+
+    #[test]
+    fn check_mode_reports_without_writing() {
+        let dir = tempdir().unwrap();
+        let paths: Vec<PathBuf> = ["a.rs", "b.rs"]
+            .iter()
+            .map(|f| dir.path().join(f))
+            .collect();
+        for p in &paths {
+            std::fs::write(p, b"fn main() {}\n").unwrap();
+        }
+        let results = process_all(&paths, &check_ctx("MIT", "wendellmeset", 2026));
+        assert_eq!(classify(&results), vec!["updated", "updated"]);
+        for p in &paths {
+            assert_eq!(std::fs::read(p).unwrap(), b"fn main() {}\n");
+        }
     }
 
     #[test]

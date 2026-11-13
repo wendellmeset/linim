@@ -33,6 +33,14 @@ pub struct Args {
     #[arg(long, help = help::VERBOSE_HELP)]
     pub verbose: bool,
 
+    /// Check headers without writing; exit non-zero on any drift.
+    #[arg(
+        long,
+        help = help::CHECK_HELP,
+        conflicts_with_all = ["new", "no_headers"]
+    )]
+    pub check: bool,
+
     /// The directory to operate on.
     #[arg(default_value = ".", help = help::PATH_HELP)]
     pub path: PathBuf,
@@ -56,6 +64,7 @@ mod tests {
         let a = parse_from(&["linim"]).unwrap();
         assert!(!a.new);
         assert!(!a.no_headers);
+        assert!(!a.check);
         assert_eq!(a.license, None);
         assert_eq!(a.path, PathBuf::from("."));
     }
@@ -98,6 +107,29 @@ mod tests {
     #[test]
     fn license_flag_requires_a_value() {
         assert!(parse_from(&["linim", "--license"]).is_err());
+    }
+
+    #[test]
+    fn check_flag() {
+        let a = parse_from(&["linim", "--check"]).unwrap();
+        assert!(a.check);
+    }
+
+    #[test]
+    fn check_conflicts_with_new() {
+        assert!(parse_from(&["linim", "--check", "--new"]).is_err());
+    }
+
+    #[test]
+    fn check_conflicts_with_no_headers() {
+        assert!(parse_from(&["linim", "--check", "--no-headers"]).is_err());
+    }
+
+    #[test]
+    fn check_combines_with_license_override() {
+        let a = parse_from(&["linim", "--check", "--license", "MIT"]).unwrap();
+        assert!(a.check);
+        assert_eq!(a.license.as_deref(), Some("MIT"));
     }
 
     #[test]
@@ -149,5 +181,6 @@ mod tests {
         assert!(text.contains("--new"));
         assert!(text.contains("--no-headers"));
         assert!(text.contains("--license"));
+        assert!(text.contains("--check"));
     }
 }

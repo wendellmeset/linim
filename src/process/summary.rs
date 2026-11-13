@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::error::Result;
 use crate::header::detect::HeaderBlock;
 use crate::helpers;
-use crate::process::single::FileOutcome;
+use crate::process::single::{FileOutcome, Mode};
 
 /// Counts and report details for a run.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -26,19 +26,28 @@ pub struct Summary {
     pub ambiguous: Vec<(PathBuf, Vec<usize>)>,
     /// Files that failed: path and formatted error message.
     pub errors: Vec<(PathBuf, String)>,
-    /// Paths of files rewritten, in input order (for `--verbose`).
+    /// Paths of outdated files, in input order: rewritten in write mode,
+    /// reported but left alone in check mode.
     pub updated_paths: Vec<PathBuf>,
     /// Whether per-file update lines should be reported.
     pub verbose: bool,
+    /// Whether this summary describes a write or a check run.
+    pub mode: Mode,
 }
 
 /// Build a [`Summary`] from results paired with their paths.
 ///
 /// `results[i]` corresponds to `paths[i]` (as produced by `process_all`).
-pub fn summarize(results: &[Result<FileOutcome>], paths: &[PathBuf], verbose: bool) -> Summary {
+pub fn summarize(
+    results: &[Result<FileOutcome>],
+    paths: &[PathBuf],
+    verbose: bool,
+    mode: Mode,
+) -> Summary {
     debug_assert_eq!(results.len(), paths.len());
     let mut summary = Summary {
         verbose,
+        mode,
         ..Summary::default()
     };
     for (path, result) in paths.iter().zip(results) {
@@ -61,11 +70,55 @@ pub fn summarize(results: &[Result<FileOutcome>], paths: &[PathBuf], verbose: bo
 impl Summary {
     /// Render the report, showing paths relative to `root`.
     pub fn render(&self, root: &Path) -> String {
+        match self.mode {
+            Mode::Write => self.render_write(root),
+            Mode::Check => self.render_check(root),
+        }
+    }
+
+    /// Whether this run should exit non-zero.
+    ///
+    /// Errors always fail. In check mode an outdated or ambiguous file also
+    /// fails; in write mode those files were handled and do not.
+    pub fn has_failures(&self) -> bool {
+        if !self.errors.is_empty() {
+            return true;
+        }
+        match self.mode {
+            Mode::Write => false,
+            Mode::Check => self.updated > 0 || !self.ambiguous.is_empty(),
+        }
+    }
+
+    fn render_write(&self, root: &Path) -> String {
         let mut out = format!(
             "Scanned {}, updated {}, skipped {}.\n",
             self.scanned, self.updated, self.skipped
         );
+        self.push_problems(root, &mut out);
+        out
+    }
 
+    fn render_check(&self, root: &Path) -> String {
+        let mut out = format!(
+            "Scanned {}, up to date {}, need update {}.\n",
+            self.scanned, self.skipped, self.updated
+        );
+        if !self.updated_paths.is_empty() {
+            out.push('\n');
+            out.push_str("Missing or incorrect header:\n");
+            for path in &self.updated_paths {
+                out.push_str("  ");
+                out.push_str(&helpers::relative_display(root, path));
+                out.push('\n');
+            }
+        }
+        self.push_problems(root, &mut out);
+        out
+    }
+
+    /// Append the sections shared by write and check reports.
+    fn push_problems(&self, root: &Path, out: &mut String) {
         if !self.ambiguous.is_empty() {
             out.push('\n');
             out.push_str("Ambiguous header (skipped):\n");
@@ -91,16 +144,14 @@ impl Summary {
                 out.push_str(&format!("  {rel} — {msg}\n"));
             }
         }
-
-        out
     }
 
     /// Render one `updated: <relative path>` line per rewritten file, for stderr.
     ///
-    /// Empty unless `verbose` is set. Paths are relative to `root`, matching the
-    /// summary's conventions.
+    /// Empty unless `verbose` is set, and always empty in check mode (the
+    /// report itself already lists every outdated file).
     pub fn render_verbose(&self, root: &Path) -> String {
-        if !self.verbose {
+        if self.mode == Mode::Check || !self.verbose {
             return String::new();
         }
         let mut out = String::new();
@@ -149,7 +200,7 @@ mod tests {
         ];
         let results: Vec<Result<FileOutcome>> =
             (0..3).map(|_| Ok(FileOutcome::Skipped)).collect();
-        let s = summarize(&results, &paths, false);
+        let s = summarize(&results, &paths, false, Mode::Write);
         assert_eq!(s.scanned, 3);
         assert_eq!(s.skipped, 3);
         assert_eq!(s.updated, 0);
@@ -161,7 +212,7 @@ mod tests {
     fn all_updated_counts() {
         let paths = vec![PathBuf::from("/proj/a.rs")];
         let results: Vec<Result<FileOutcome>> = vec![Ok(FileOutcome::Updated)];
-        let s = summarize(&results, &paths, false);
+        let s = summarize(&results, &paths, false, Mode::Write);
         assert_eq!(s.scanned, 1);
         assert_eq!(s.updated, 1);
         assert_eq!(s.skipped, 0);
@@ -179,7 +230,7 @@ mod tests {
             Ok(FileOutcome::Updated),
             Ok(FileOutcome::Ambiguous(vec![block(3), block(8)])),
         ];
-        let s = summarize(&results, &paths, false);
+        let s = summarize(&results, &paths, false, Mode::Write);
         assert_eq!(s.scanned, 3);
         assert_eq!(s.skipped, 1);
         assert_eq!(s.updated, 1);
@@ -191,7 +242,7 @@ mod tests {
     fn render_minimal() {
         let paths = vec![PathBuf::from("/proj/a.rs")];
         let results: Vec<Result<FileOutcome>> = vec![Ok(FileOutcome::Skipped)];
-        let s = summarize(&results, &paths, false);
+        let s = summarize(&results, &paths, false, Mode::Write);
         assert_eq!(s.render(Path::new("/proj")), "Scanned 1, updated 0, skipped 1.\n");
     }
 
@@ -200,7 +251,7 @@ mod tests {
         let paths: Vec<PathBuf> = (0..10).map(|i| PathBuf::from(format!("/proj/f{i}.rs"))).collect();
         let results: Vec<Result<FileOutcome>> =
             (0..10).map(|_| Ok(FileOutcome::Skipped)).collect();
-        let s = summarize(&results, &paths, false);
+        let s = summarize(&results, &paths, false, Mode::Write);
         assert_eq!(s.render(Path::new("/proj")), "Scanned 10, updated 0, skipped 10.\n");
     }
 
@@ -209,7 +260,7 @@ mod tests {
         let paths = vec![PathBuf::from("/proj/src/vendor/foo.go")];
         let results: Vec<Result<FileOutcome>> =
             vec![Ok(FileOutcome::Ambiguous(vec![block(3), block(8)]))];
-        let s = summarize(&results, &paths, false);
+        let s = summarize(&results, &paths, false, Mode::Write);
         assert_eq!(
             s.render(Path::new("/proj")),
             "Scanned 1, updated 0, skipped 0.\n\nAmbiguous header (skipped):\n  src/vendor/foo.go — 2 license headers at lines 3, 8\n"
@@ -220,7 +271,7 @@ mod tests {
     fn render_one_error() {
         let paths = vec![PathBuf::from("/proj/src/blocked.rs")];
         let results: Vec<Result<FileOutcome>> = vec![Err(io_err("Permission denied (os error 13)"))];
-        let s = summarize(&results, &paths, false);
+        let s = summarize(&results, &paths, false, Mode::Write);
         assert_eq!(
             s.render(Path::new("/proj")),
             "Scanned 1, updated 0, skipped 0.\n\nErrors:\n  src/blocked.rs — failed to access /proj/src/blocked.rs: Permission denied (os error 13)\n"
@@ -237,7 +288,7 @@ mod tests {
             Ok(FileOutcome::Ambiguous(vec![block(1), block(5)])),
             Err(io_err("boom")),
         ];
-        let s = summarize(&results, &paths, false);
+        let s = summarize(&results, &paths, false, Mode::Write);
         let out = s.render(Path::new("/proj"));
         assert!(out.starts_with("Scanned 2, updated 0, skipped 0.\n"));
         // Sections appear in order: counts, blank+ambiguous, blank+errors.
@@ -261,7 +312,7 @@ mod tests {
             Err(io_err("e1")),
             Ok(FileOutcome::Ambiguous(vec![block(2)])),
         ];
-        let s = summarize(&results, &paths, false);
+        let s = summarize(&results, &paths, false, Mode::Write);
         assert_eq!(s.ambiguous[0].0, PathBuf::from("/proj/x.rs"));
         assert_eq!(s.ambiguous[1].0, PathBuf::from("/proj/z.rs"));
         assert_eq!(s.errors[0].0, PathBuf::from("/proj/y.rs"));
@@ -293,7 +344,7 @@ mod tests {
             Ok(FileOutcome::Skipped),
             Ok(FileOutcome::Updated),
         ];
-        let s = summarize(&results, &paths, true);
+        let s = summarize(&results, &paths, true, Mode::Write);
         assert_eq!(
             s.render_verbose(Path::new("/proj")),
             "updated: src/a.rs\nupdated: src/c.rs\n"
@@ -304,7 +355,78 @@ mod tests {
     fn render_verbose_empty_when_not_verbose() {
         let paths = vec![PathBuf::from("/proj/a.rs")];
         let results: Vec<Result<FileOutcome>> = vec![Ok(FileOutcome::Updated)];
-        let s = summarize(&results, &paths, false);
+        let s = summarize(&results, &paths, false, Mode::Write);
+        assert_eq!(s.render_verbose(Path::new("/proj")), "");
+    }
+
+    #[test]
+    fn check_render_lists_outdated_paths() {
+        let paths = vec![
+            PathBuf::from("/proj/src/a.rs"),
+            PathBuf::from("/proj/src/b.rs"),
+        ];
+        let results: Vec<Result<FileOutcome>> = vec![
+            Ok(FileOutcome::Updated),
+            Ok(FileOutcome::Skipped),
+        ];
+        let s = summarize(&results, &paths, false, Mode::Check);
+        assert_eq!(
+            s.render(Path::new("/proj")),
+            "Scanned 2, up to date 1, need update 1.\n\nMissing or incorrect header:\n  src/a.rs\n"
+        );
+        assert!(s.has_failures());
+    }
+
+    #[test]
+    fn check_all_correct_has_no_failures() {
+        let paths = vec![PathBuf::from("/proj/a.rs")];
+        let results: Vec<Result<FileOutcome>> = vec![Ok(FileOutcome::Skipped)];
+        let s = summarize(&results, &paths, false, Mode::Check);
+        assert_eq!(
+            s.render(Path::new("/proj")),
+            "Scanned 1, up to date 1, need update 0.\n"
+        );
+        assert!(!s.has_failures());
+    }
+
+    #[test]
+    fn check_ambiguous_fails() {
+        let paths = vec![PathBuf::from("/proj/a.rs")];
+        let results: Vec<Result<FileOutcome>> =
+            vec![Ok(FileOutcome::Ambiguous(vec![block(0), block(4)]))];
+        let s = summarize(&results, &paths, false, Mode::Check);
+        assert!(s.has_failures());
+    }
+
+    #[test]
+    fn check_errors_fail() {
+        let paths = vec![PathBuf::from("/proj/a.rs")];
+        let results: Vec<Result<FileOutcome>> = vec![Err(io_err("boom"))];
+        let s = summarize(&results, &paths, false, Mode::Check);
+        assert!(s.has_failures());
+    }
+
+    #[test]
+    fn write_outdated_does_not_fail() {
+        let paths = vec![PathBuf::from("/proj/a.rs")];
+        let results: Vec<Result<FileOutcome>> = vec![Ok(FileOutcome::Updated)];
+        let s = summarize(&results, &paths, false, Mode::Write);
+        assert!(!s.has_failures());
+    }
+
+    #[test]
+    fn write_errors_fail() {
+        let paths = vec![PathBuf::from("/proj/a.rs")];
+        let results: Vec<Result<FileOutcome>> = vec![Err(io_err("boom"))];
+        let s = summarize(&results, &paths, false, Mode::Write);
+        assert!(s.has_failures());
+    }
+
+    #[test]
+    fn check_render_verbose_is_empty_even_when_verbose() {
+        let paths = vec![PathBuf::from("/proj/a.rs")];
+        let results: Vec<Result<FileOutcome>> = vec![Ok(FileOutcome::Updated)];
+        let s = summarize(&results, &paths, true, Mode::Check);
         assert_eq!(s.render_verbose(Path::new("/proj")), "");
     }
 }

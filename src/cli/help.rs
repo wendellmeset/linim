@@ -28,3 +28,7 @@ pub const LICENSE_HELP: &str =
 /// Help for `--verbose`.
 pub const VERBOSE_HELP: &str =
     "Emit one line per updated file to stderr.";
+
+/// Help for `--check`.
+pub const CHECK_HELP: &str = "Check every header without writing anything. \
+    Exit 1 if any file is missing a header, has a wrong one, or has an ambiguous one.";
