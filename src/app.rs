@@ -22,6 +22,50 @@ use crate::process::summary;
 use crate::state::{self, State};
 use crate::walker;
 
+/// Resolve the license and copyright for this run.
+///
+/// Precedence, from strongest to weakest:
+///
+/// - `--new`: ignore `.linim` and any `LICENSE`; use `--license` or the
+///   picker, then always prompt for copyright.
+/// - `--license`: honor the explicit SPDX identifier. Reuse the stored
+///   copyright when `.linim` exists, otherwise prompt.
+/// - existing `.linim`: reuse both the stored license and copyright.
+/// - detected `LICENSE`: use its SPDX identifier, then prompt for copyright.
+/// - otherwise: the interactive picker, then prompt for copyright.
+fn resolve(
+    args: &Args,
+    existing: Option<&State>,
+) -> Result<(&'static registry::LicenseEntry, copyright::CopyrightInfo)> {
+    if args.new {
+        let entry = match args.license.as_deref() {
+            Some(spdx) => registry::by_spdx(spdx)?,
+            None => picker::pick()?,
+        };
+        let info = copyright::resolve(None)?;
+        return Ok((entry, info));
+    }
+
+    if let Some(spdx) = args.license.as_deref() {
+        let entry = registry::by_spdx(spdx)?;
+        let info = copyright::resolve(existing)?;
+        return Ok((entry, info));
+    }
+
+    if let Some(state) = existing {
+        let entry = registry::by_spdx(&state.spdx)?;
+        let info = copyright::resolve(Some(state))?;
+        return Ok((entry, info));
+    }
+
+    let entry = match crate::license::detect::detect(&args.path)? {
+        Some(spdx) => registry::by_spdx(&spdx)?,
+        None => picker::pick()?,
+    };
+    let info = copyright::resolve(None)?;
+    Ok((entry, info))
+}
+
 /// Run the full pipeline. `Ok(true)` means files failed; `Ok(false)` means a
 /// clean run (with or without changes).
 pub fn run(args: Args) -> Result<bool> {
@@ -37,31 +81,7 @@ pub fn run(args: Args) -> Result<bool> {
     let existing_state = state::read(&args.path)?;
 
     // Phase 3: resolve license and copyright (reuse or reconfigure).
-    let (entry, info) = match (&existing_state, args.new) {
-        (Some(s), false) => {
-            let entry = registry::by_spdx(&s.spdx)?;
-            let info = copyright::CopyrightInfo {
-                holder: s.holder.clone(),
-                year: s.year,
-            };
-            (entry, info)
-        }
-        _ => {
-            // `--new` bypasses `.linim` and any existing `LICENSE`: always
-            // prompt. Without `--new`, a recognized LICENSE skips the picker.
-            let detected = if args.new {
-                None
-            } else {
-                crate::license::detect::detect(&args.path)?
-            };
-            let entry = match detected {
-                Some(spdx) => registry::by_spdx(&spdx)?,
-                None => picker::pick()?,
-            };
-            let info = copyright::resolve(None)?;
-            (entry, info)
-        }
-    };
+    let (entry, info) = resolve(&args, existing_state.as_ref())?;
 
     // Phase 4: build the new state.
     let mut new_state = State::new(entry.spdx.to_string(), info.holder.clone(), info.year);

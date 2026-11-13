@@ -30,6 +30,7 @@ linim [OPTIONS] [PATH]
 |-----------------|--------------------------------------------------------------------|
 | `--new`         | Reconfigure from scratch, prompt for license and copyright, rewrite `LICENSE`, `.linim`, and every file's header. |
 | `--no-headers`  | Write or update `LICENSE` only. Do not touch source file headers.  |
+| `--license <SPDX>` | Pick the license by SPDX identifier instead of the interactive picker. |
 | `--verbose`     | Emit one line per updated file to stderr.                          |
 | `-h, --help`    | Print help.                                                        |
 | `-V, --version` | Print version.                                                     |

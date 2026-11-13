@@ -25,6 +25,10 @@ pub struct Args {
     #[arg(long, help = help::NO_HEADERS_HELP)]
     pub no_headers: bool,
 
+    /// Select the license by SPDX identifier instead of the interactive picker.
+    #[arg(long, value_name = "SPDX", help = help::LICENSE_HELP)]
+    pub license: Option<String>,
+
     /// Emit one line per updated file to stderr.
     #[arg(long, help = help::VERBOSE_HELP)]
     pub verbose: bool,
@@ -52,6 +56,7 @@ mod tests {
         let a = parse_from(&["linim"]).unwrap();
         assert!(!a.new);
         assert!(!a.no_headers);
+        assert_eq!(a.license, None);
         assert_eq!(a.path, PathBuf::from("."));
     }
 
@@ -74,6 +79,25 @@ mod tests {
         let a = parse_from(&["linim", "--new", "--no-headers"]).unwrap();
         assert!(a.new);
         assert!(a.no_headers);
+    }
+
+    #[test]
+    fn license_flag() {
+        let a = parse_from(&["linim", "--license", "MIT"]).unwrap();
+        assert_eq!(a.license.as_deref(), Some("MIT"));
+    }
+
+    #[test]
+    fn license_flag_with_new_and_path() {
+        let a = parse_from(&["linim", "--new", "--license", "GPL-3.0-or-later", "src"]).unwrap();
+        assert!(a.new);
+        assert_eq!(a.license.as_deref(), Some("GPL-3.0-or-later"));
+        assert_eq!(a.path, PathBuf::from("src"));
+    }
+
+    #[test]
+    fn license_flag_requires_a_value() {
+        assert!(parse_from(&["linim", "--license"]).is_err());
     }
 
     #[test]
@@ -124,5 +148,6 @@ mod tests {
         assert!(text.contains("manage a project's license"));
         assert!(text.contains("--new"));
         assert!(text.contains("--no-headers"));
+        assert!(text.contains("--license"));
     }
 }

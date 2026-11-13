@@ -21,6 +21,10 @@ pub const NEW_HELP: &str = "Reconfigure from scratch. Prompts for license and \
 pub const NO_HEADERS_HELP: &str =
     "Write or update LICENSE only. Do not touch source file headers.";
 
+/// Help for `--license`.
+pub const LICENSE_HELP: &str =
+    "Pick the license by SPDX identifier instead of the interactive picker.";
+
 /// Help for `--verbose`.
 pub const VERBOSE_HELP: &str =
     "Emit one line per updated file to stderr.";

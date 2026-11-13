@@ -159,6 +159,66 @@ fn verbose_lists_updated_files_to_stderr() {
 }
 
 #[test]
+fn license_flag_switches_license_without_prompt() {
+    let dir = tempdir().unwrap();
+    write_state(dir.path());
+    fs::write(
+        dir.path().join("main.rs"),
+        "// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let out = run(dir.path(), &["--license", "Apache-2.0"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    assert!(stdout(&out).contains("Scanned 1, updated 1, skipped 0."));
+
+    let rs = fs::read_to_string(dir.path().join("main.rs")).unwrap();
+    assert!(rs.contains("SPDX-License-Identifier: Apache-2.0"), "{rs}");
+    let state = fs::read_to_string(dir.path().join(".linim")).unwrap();
+    assert!(state.contains("spdx = Apache-2.0"), "{state}");
+    let license = fs::read_to_string(dir.path().join("LICENSE")).unwrap();
+    assert!(license.contains("Apache License"), "{license}");
+}
+
+#[test]
+fn unknown_license_flag_fails_before_writing() {
+    let dir = tempdir().unwrap();
+    write_state(dir.path());
+    let before =
+        "// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\nfn main() {}\n";
+    fs::write(dir.path().join("main.rs"), before).unwrap();
+
+    let out = run(dir.path(), &["--license", "NOPE"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("license not found: NOPE"), "stderr: {}", stderr(&out));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("main.rs")).unwrap(),
+        before
+    );
+    assert!(!dir.path().join("LICENSE").exists());
+    assert_eq!(
+        fs::read_to_string(dir.path().join(".linim")).unwrap(),
+        STATE
+    );
+}
+
+#[test]
+fn new_with_license_still_prompts_for_copyright() {
+    let dir = tempdir().unwrap();
+    write_state(dir.path());
+    fs::write(dir.path().join("main.rs"), "fn main() {}\n").unwrap();
+
+    let out = run(dir.path(), &["--new", "--license", "MIT"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("stdin is not a terminal"), "stderr: {}", stderr(&out));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("main.rs")).unwrap(),
+        "fn main() {}\n"
+    );
+    assert!(!dir.path().join("LICENSE").exists());
+}
+
+#[test]
 fn existing_recognized_license_reaches_copyright_prompt() {
     // A repo with a recognized LICENSE but no `.linim` skips the license
     // picker (detect wiring) and proceeds to the copyright prompt, which
