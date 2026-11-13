@@ -18,7 +18,8 @@ pub fn inject(buf: &[u8], preamble: &Preamble, rendered: &str) -> Vec<u8> {
     let at = preamble.byte_offset.min(buf.len());
     let mut out = Vec::with_capacity(buf.len() + rendered.len() + 1);
     out.extend_from_slice(&buf[..at]);
-    if at > 0 && buf[at - 1] != b'\n' {
+    // A BOM with no preamble lines after it needs no newline.
+    if preamble.line_count > 0 && at > 0 && buf[at - 1] != b'\n' {
         out.push(b'\n');
     }
     out.extend_from_slice(rendered.as_bytes());
