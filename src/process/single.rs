@@ -200,6 +200,41 @@ mod tests {
     }
 
     #[test]
+    fn comment_right_below_old_header_is_kept() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("main.rs");
+        std::fs::write(
+            &path,
+            b"// SPDX-FileCopyrightText: 2025 wendellmeset\n// SPDX-License-Identifier: Apache-2.0\n// Parses config files.\n\nfn main() {}\n",
+        )
+        .unwrap();
+        let ctx = ctx("MIT", "wendellmeset", 2026);
+        assert_eq!(process_file(&path, &ctx).unwrap(), FileOutcome::Updated);
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\n// Parses config files.\n\nfn main() {}\n"
+        );
+        // The second run sees a correct header and leaves the file alone.
+        assert_eq!(process_file(&path, &ctx).unwrap(), FileOutcome::Skipped);
+    }
+
+    #[test]
+    fn rust_doc_comments_right_below_old_header_are_kept() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("lib.rs");
+        std::fs::write(
+            &path,
+            b"// SPDX-FileCopyrightText: 2025 wendellmeset\n// SPDX-License-Identifier: MIT\n//! Crate docs.\n//! More docs.\n\npub fn f() {}\n",
+        )
+        .unwrap();
+        assert_eq!(process_file(&path, &ctx("MIT", "wendellmeset", 2026)).unwrap(), FileOutcome::Updated);
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"// SPDX-FileCopyrightText: 2026 wendellmeset\n// SPDX-License-Identifier: MIT\n\n//! Crate docs.\n//! More docs.\n\npub fn f() {}\n"
+        );
+    }
+
+    #[test]
     fn bom_stays_first_when_header_added() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("Program.cs");
